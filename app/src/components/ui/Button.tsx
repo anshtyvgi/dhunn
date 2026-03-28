@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { forwardRef } from "react";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -12,11 +11,13 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variants = {
   primary:
-    "bg-accent text-black shadow-[0_2px_16px_rgba(74,222,128,0.2)]",
-  secondary: "bg-surface text-text shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_2px_12px_rgba(0,0,0,0.3)]",
-  ghost: "bg-transparent text-text-secondary hover:text-text hover:bg-white/5",
+    "bg-gradient-to-r from-accent to-emerald-500 text-white shadow-[0_2px_16px_rgba(16,185,129,0.25)]",
+  secondary:
+    "bg-surface text-text shadow-sm border border-border hover:bg-bg-secondary",
+  ghost:
+    "bg-transparent text-text-secondary hover:text-text hover:bg-surface",
   outline:
-    "bg-transparent border border-white/10 text-text hover:border-accent/40 hover:text-accent",
+    "bg-transparent border border-border text-text hover:border-accent/40 hover:text-accent hover:bg-accent/5",
 };
 
 const sizes = {
@@ -29,24 +30,22 @@ const sizes = {
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ variant = "primary", size = "md", children, fullWidth, className = "", ...props }, ref) => {
     return (
-      <motion.button
+      <button
         ref={ref}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        transition={{ type: "spring", stiffness: 400, damping: 20 }}
         className={`
-          inline-flex items-center justify-center gap-2 font-medium
-          transition-colors duration-200 cursor-pointer
+          inline-flex items-center justify-center gap-2 font-semibold
+          transition-all duration-200 cursor-pointer
+          hover:scale-[1.02] active:scale-[0.98]
           disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none
           ${variants[variant]}
           ${sizes[size]}
           ${fullWidth ? "w-full" : ""}
           ${className}
         `}
-        {...(props as React.ComponentProps<typeof motion.button>)}
+        {...props}
       >
         {children}
-      </motion.button>
+      </button>
     );
   }
 );

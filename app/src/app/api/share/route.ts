@@ -1,22 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// In-memory store for shared dedications (mirrors generationStore pattern)
+declare global {
+  var sharedStore: Map<string, SharedDedication>;
+}
+if (!global.sharedStore) {
+  global.sharedStore = new Map();
+}
+
+interface SharedDedication {
+  id: string;
+  recipientName: string;
+  occasion: string;
+  mood: string;
+  genre: string;
+  message: string;
+  creatorName: string;
+  posterUrl: string | null;
+  audioUrl: string | null;
+  lyrics: string | null;
+  isPaid: boolean;
+  createdAt: string;
+}
+
 // POST /api/share
 // Creates a shareable link for a dedication
-// Requires payment (coins deducted client-side, verified server-side)
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { generationId, userId } = body;
+    const { generationId, recipientName, occasion, mood, genre, message, creatorName, posterUrl, audioUrl, lyrics } = body;
 
     if (!generationId) {
       return NextResponse.json({ error: "Missing generation ID" }, { status: 400 });
     }
 
-    // TODO: Verify coin payment
-    // TODO: Look up generation from DB
-    // TODO: Mark as shared
-    // TODO: Generate share URL
+    // Also check the generation store for audio data
+    const generation = global.generationStore?.get(generationId);
+    const firstCompletedTrack = generation?.tracks.find((t) => t.status === "completed");
+
+    const shared: SharedDedication = {
+      id: generationId,
+      recipientName: recipientName || generation?.tracks[0]?.title || "Someone special",
+      occasion: occasion || "love",
+      mood: mood || "romantic",
+      genre: genre || "pop",
+      message: message || "",
+      creatorName: creatorName || "A friend",
+      posterUrl: posterUrl || generation?.posterUrl || null,
+      audioUrl: audioUrl || firstCompletedTrack?.audioUrl || null,
+      lyrics: lyrics || generation?.tracks.map((t) => t.lyrics).filter(Boolean).join("\n\n---\n\n") || null,
+      isPaid: true,
+      createdAt: new Date().toISOString(),
+    };
+
+    global.sharedStore.set(generationId, shared);
 
     const shareUrl = `/d/${generationId}`;
 
@@ -41,18 +78,45 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing ID" }, { status: 400 });
   }
 
-  // TODO: Fetch from DB
-  // TODO: Check if paid/shared
-  // TODO: Return appropriate data (full if paid, preview if not)
+  // Check shared store first
+  const shared = global.sharedStore?.get(id);
+  if (shared) {
+    return NextResponse.json(shared);
+  }
 
+  // Fall back to generation store for preview data
+  const generation = global.generationStore?.get(id);
+  if (generation) {
+    const firstCompletedTrack = generation.tracks.find((t) => t.status === "completed");
+    return NextResponse.json({
+      id,
+      recipientName: generation.tracks[0]?.title || "Someone special",
+      occasion: "love",
+      mood: "romantic",
+      genre: "pop",
+      message: "",
+      creatorName: "A friend",
+      posterUrl: generation.posterUrl,
+      audioUrl: firstCompletedTrack?.audioUrl || null,
+      lyrics: generation.tracks.map((t) => t.lyrics).filter(Boolean).join("\n\n---\n\n"),
+      isPaid: false,
+      createdAt: generation.createdAt,
+    });
+  }
+
+  // Not found — return mock data for demo
   return NextResponse.json({
     id,
     recipientName: "Someone special",
     occasion: "love",
     mood: "romantic",
+    genre: "pop",
     message: "You mean the world to me",
+    creatorName: "A friend",
     posterUrl: null,
     audioUrl: null,
+    lyrics: null,
     isPaid: false,
+    createdAt: new Date().toISOString(),
   });
 }

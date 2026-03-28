@@ -84,7 +84,7 @@ export function DiscPlayer({
           <motion.div
             className="absolute inset-0 rounded-full"
             style={{
-              background: "radial-gradient(circle, rgba(74,222,128,0.2) 0%, transparent 70%)",
+              background: "radial-gradient(circle, rgba(34,197,94,0.15) 0%, transparent 70%)",
             }}
             animate={{ scale: [1, 1.15, 1] }}
             transition={{ duration: 2, repeat: Infinity }}
@@ -93,20 +93,20 @@ export function DiscPlayer({
 
         {/* Disc body */}
         <motion.div
-          className="absolute inset-0 rounded-full bg-bg-card overflow-hidden"
-          style={{ boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 4px 24px rgba(0,0,0,0.4)" }}
+          className="absolute inset-0 rounded-full bg-bg-card border border-border overflow-hidden"
+          style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.08)" }}
           animate={isPlaying ? { rotate: 360 } : { rotate: 0 }}
           transition={isPlaying ? { duration: 8, repeat: Infinity, ease: "linear" } : { duration: 0.5 }}
         >
           {/* Grooves */}
-          <div className="absolute inset-4 rounded-full border border-white/[0.03]" />
-          <div className="absolute inset-8 rounded-full border border-white/[0.03]" />
-          <div className="absolute inset-12 rounded-full border border-white/[0.03]" />
+          <div className="absolute inset-4 rounded-full border border-black/[0.04]" />
+          <div className="absolute inset-8 rounded-full border border-black/[0.04]" />
+          <div className="absolute inset-12 rounded-full border border-black/[0.04]" />
 
           {/* Center label */}
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-12 h-12 rounded-full bg-accent flex items-center justify-center">
-              <span className="text-black text-xs font-bold">#{trackNumber}</span>
+              <span className="text-white text-xs font-bold">#{trackNumber}</span>
             </div>
           </div>
         </motion.div>
@@ -114,11 +114,11 @@ export function DiscPlayer({
         {/* Play/Pause overlay */}
         {!isPlaying && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-12 h-12 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-md border border-border">
               {audioUrl ? (
-                <Play className="w-5 h-5 text-white ml-0.5" />
+                <Play className="w-5 h-5 text-text ml-0.5" />
               ) : (
-                <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                <div className="w-4 h-4 rounded-full border-2 border-text-muted/30 border-t-text-muted animate-spin" />
               )}
             </div>
           </div>
@@ -128,7 +128,7 @@ export function DiscPlayer({
       {/* Progress bar */}
       {audioUrl && (
         <div className="w-full max-w-[160px] space-y-1">
-          <div className="w-full h-1 rounded-full bg-white/[0.06] overflow-hidden">
+          <div className="w-full h-1 rounded-full bg-border overflow-hidden">
             <motion.div
               className="h-full rounded-full bg-accent"
               style={{ width: `${progress}%` }}

@@ -1,13 +1,27 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useStore } from "@/stores/useStore";
 import { Button } from "@/components/ui/Button";
 import { COIN_COSTS, OCCASIONS, MOODS, GENRES, LANGUAGES } from "@/types";
-import { ArrowLeft, Sparkles, Coins } from "lucide-react";
+import { ArrowLeft, Sparkles, Check, Music } from "lucide-react";
+import { generateLyrics, generateMusic, startPolling } from "@/lib/api";
+import type { LyricOption } from "@/lib/api";
+import { useState, useRef } from "react";
+
+const lyricCardColors = [
+  "from-emerald-400/10 to-cyan-400/5 border-emerald-200",
+  "from-violet-400/10 to-indigo-400/5 border-violet-200",
+  "from-rose-400/10 to-amber-400/5 border-rose-200",
+];
 
 export function StepGenerate() {
   const { dedication, coins, isFirstTime, deductCoins, setStep, setGenerationStatus, setCurrentGeneration } = useStore();
+  const [lyricsOptions, setLyricsOptions] = useState<LyricOption[] | null>(null);
+  const [selectedLyrics, setSelectedLyrics] = useState<number | null>(null);
+  const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
+  const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
+  const stopPollingRef = useRef<(() => void) | null>(null);
 
   const cost = isFirstTime ? 0 : COIN_COSTS.generate;
   const canAfford = isFirstTime || coins >= cost;
@@ -17,172 +31,234 @@ export function StepGenerate() {
   const genreLabel = GENRES.find((g) => g.value === dedication.genre)?.label;
   const languageLabel = LANGUAGES.find((l) => l.value === dedication.language)?.label;
 
-  const handleGenerate = async () => {
-    if (!canAfford) return;
+  const handleGenerateLyrics = async () => {
+    setIsGeneratingLyrics(true);
+    try {
+      const result = await generateLyrics(dedication);
+      setLyricsOptions(result.options);
+    } catch (error) {
+      console.error("Lyrics error:", error);
+    } finally {
+      setIsGeneratingLyrics(false);
+    }
+  };
 
-    // Deduct coins (unless first time)
+  const handleGenerateMusic = async () => {
+    if (!lyricsOptions || !canAfford) return;
+
     if (!isFirstTime) {
       const success = deductCoins(cost);
       if (!success) return;
     }
 
-    // Set generation status
-    setGenerationStatus("generating-prompt");
+    setIsGeneratingMusic(true);
+    setGenerationStatus("generating-tracks");
 
-    // Create a mock generation for now (will connect to real API)
-    const generation = {
-      id: crypto.randomUUID(),
-      input: dedication,
-      status: "generating-prompt" as const,
-      tracks: [
-        { id: "t1", status: "pending" as const },
-        { id: "t2", status: "pending" as const },
-        { id: "t3", status: "pending" as const },
-      ],
-      createdAt: new Date().toISOString(),
-      isPaid: false,
-      isShared: false,
-    };
-
-    setCurrentGeneration(generation);
-
-    // Simulate progressive generation
-    setTimeout(() => setGenerationStatus("generating-poster"), 2000);
-    setTimeout(() => setGenerationStatus("generating-tracks"), 4000);
-    setTimeout(() => {
-      setGenerationStatus("partial");
-      setCurrentGeneration({
-        ...generation,
-        status: "partial",
-        posterUrl: "/mock-poster.jpg",
-        tracks: [
-          { id: "t1", status: "completed", audioUrl: "/mock-track.mp3" },
-          { id: "t2", status: "processing" },
-          { id: "t3", status: "pending" },
-        ],
+    try {
+      // Send all 3 lyrics — each gets its own track
+      const result = await generateMusic({
+        lyrics: lyricsOptions.map((o) => o.lyrics),
+        tags: lyricsOptions.map((o) => o.tags),
+        titles: lyricsOptions.map((o) => o.title),
+        vibes: lyricsOptions.map((o) => o.vibe),
+        recipientName: dedication.recipientName,
+        occasion: dedication.occasion,
+        mood: dedication.mood,
+        genre: dedication.genre,
       });
-    }, 6000);
-    setTimeout(() => {
-      setGenerationStatus("completed");
-      setCurrentGeneration({
-        ...generation,
-        status: "completed",
-        posterUrl: "/mock-poster.jpg",
-        lyrics: "Tere bina ye dil maane na\nHar pal tujhe hi dhundhe\nTu hai meri dhun...",
-        tracks: [
-          { id: "t1", status: "completed", audioUrl: "/mock-track.mp3", duration: 60 },
-          { id: "t2", status: "completed", audioUrl: "/mock-track.mp3", duration: 60 },
-          { id: "t3", status: "completed", audioUrl: "/mock-track.mp3", duration: 60 },
-        ],
-      });
-    }, 10000);
+
+      const generation = {
+        id: result.id,
+        input: dedication,
+        status: "generating-tracks" as const,
+        tracks: result.tracks.map((t) => ({
+          id: t.id,
+          status: t.status as "pending" | "processing" | "completed" | "failed",
+        })),
+        lyrics: lyricsOptions.map((o) => `**${o.title}** — ${o.vibe}\n\n${o.lyrics}`).join("\n\n---\n\n"),
+        createdAt: new Date().toISOString(),
+        isPaid: false,
+        isShared: false,
+      };
+
+      setCurrentGeneration(generation);
+
+      stopPollingRef.current = startPolling(
+        result.id,
+        (statusData) => {
+          const hasAnyCompleted = statusData.tracks.some((t) => t.status === "completed");
+          const allCompleted = statusData.status === "completed";
+
+          setCurrentGeneration({
+            ...generation,
+            status: allCompleted ? "completed" : hasAnyCompleted ? "partial" : "generating-tracks",
+            posterUrl: statusData.posterUrl || undefined,
+            tracks: statusData.tracks.map((t) => ({
+              id: t.id,
+              status: t.status,
+              audioUrl: t.audioUrl || undefined,
+            })),
+          });
+
+          if (allCompleted) setGenerationStatus("completed");
+          else if (hasAnyCompleted) setGenerationStatus("partial");
+          else if (statusData.status === "failed") setGenerationStatus("failed");
+        },
+        (error) => {
+          console.error("Polling error:", error);
+          setGenerationStatus("failed");
+        },
+        5000
+      );
+    } catch (error) {
+      console.error("Music generation error:", error);
+      setGenerationStatus("failed");
+      if (!isFirstTime) useStore.getState().addCoins(cost);
+    }
   };
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <div className="text-center">
-        <h1 className="text-3xl sm:text-4xl font-bold font-[family-name:var(--font-display)]">
-          Ready to create?
+        <h1 className="text-3xl sm:text-4xl font-bold font-[family-name:Poppins]">
+          {lyricsOptions ? "Pick your vibe" : "Ready to create?"}
         </h1>
-        <p className="text-text-secondary mt-3">
-          Review your dedication before we make it real
+        <p className="text-text-secondary mt-2 text-sm">
+          {lyricsOptions
+            ? "AI wrote 3 unique songs. Each will become a track."
+            : "Review your dedication, then we'll write the lyrics"}
         </p>
       </div>
 
-      {/* Summary card */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-3xl bg-bg-card border border-border p-6 space-y-4"
-      >
-        <div className="flex items-center justify-between">
-          <span className="text-text-muted text-sm">For</span>
-          <span className="text-text font-semibold">{dedication.recipientName}</span>
-        </div>
-        <div className="h-px bg-border" />
-        <div className="flex items-center justify-between">
-          <span className="text-text-muted text-sm">Occasion</span>
-          <span className="text-text-secondary">{occasionLabel}</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-text-muted text-sm">Mood</span>
-          <span className="text-text-secondary">{moodLabel}</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-text-muted text-sm">Genre</span>
-          <span className="text-text-secondary">{genreLabel}</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-text-muted text-sm">Language</span>
-          <span className="text-text-secondary">{languageLabel}</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-text-muted text-sm">Voice</span>
-          <span className="text-text-secondary capitalize">{dedication.voice}</span>
-        </div>
-        {dedication.message && (
-          <>
-            <div className="h-px bg-border" />
-            <div>
-              <span className="text-text-muted text-sm block mb-2">Message</span>
-              <p className="text-text-secondary text-sm leading-relaxed italic">
-                &quot;{dedication.message}&quot;
-              </p>
+      <AnimatePresence mode="wait">
+        {!lyricsOptions ? (
+          <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
+            {/* Summary card */}
+            <div className="rounded-3xl bg-bg-card border border-border p-6 space-y-3">
+              {[
+                ["For", dedication.recipientName],
+                ["Occasion", occasionLabel],
+                ["Mood", moodLabel],
+                ["Genre", genreLabel],
+                ["Language", languageLabel],
+                ["Voice", dedication.voice],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between">
+                  <span className="text-text-muted text-sm">{label}</span>
+                  <span className="text-text-secondary text-sm capitalize font-medium">{value}</span>
+                </div>
+              ))}
+              {dedication.message && (
+                <>
+                  <div className="h-px bg-border" />
+                  <div>
+                    <span className="text-text-muted text-sm block mb-1">Message</span>
+                    <p className="text-text-secondary text-sm italic">&quot;{dedication.message}&quot;</p>
+                  </div>
+                </>
+              )}
             </div>
-          </>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <Button variant="outline" size="lg" onClick={() => setStep(2)}>
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+              <Button size="lg" fullWidth onClick={handleGenerateLyrics} disabled={isGeneratingLyrics}>
+                <Sparkles className="w-5 h-5" />
+                {isGeneratingLyrics ? "Writing lyrics..." : "Write Lyrics"}
+              </Button>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div key="lyrics" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            {/* 3 lyric cards */}
+            <div className="space-y-4">
+              {lyricsOptions.map((option, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.15 }}
+                  onClick={() => setSelectedLyrics(selectedLyrics === i ? null : i)}
+                  className={`lyric-card bg-gradient-to-br ${lyricCardColors[i]} border ${
+                    selectedLyrics === i ? "ring-2 ring-accent shadow-lg" : ""
+                  }`}
+                >
+                  <div className="relative z-10">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <p className="font-bold text-text font-[family-name:Poppins] text-lg">{option.title}</p>
+                        <p className="text-text-secondary text-xs mt-0.5">{option.vibe}</p>
+                      </div>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${
+                        selectedLyrics === i ? "bg-accent" : "bg-surface border border-border"
+                      }`}>
+                        {selectedLyrics === i && <Check className="w-4 h-4 text-white" />}
+                      </div>
+                    </div>
+                    <p className="text-text-secondary text-sm leading-relaxed whitespace-pre-line line-clamp-6">
+                      {option.lyrics.replace(/\[(Verse|Chorus|Bridge)\]/g, "").trim()}
+                    </p>
+                    {selectedLyrics === i && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        className="mt-3 pt-3 border-t border-border/50"
+                      >
+                        <p className="text-text text-sm leading-relaxed whitespace-pre-line">
+                          {option.lyrics}
+                        </p>
+                      </motion.div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Cost + Generate music */}
+            <div className="rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full token-coin flex items-center justify-center">
+                  <span className="text-base">🪙</span>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-text">
+                    {isFirstTime ? "First one's free!" : `${cost} tokens`}
+                  </p>
+                  <p className="text-xs text-text-muted">
+                    {isFirstTime ? "No tokens needed" : `Balance: ${coins}`}
+                  </p>
+                </div>
+              </div>
+              {isFirstTime && (
+                <span className="text-xs px-3 py-1 rounded-full bg-accent/10 text-accent font-bold">FREE</span>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <Button variant="outline" size="lg" onClick={() => setLyricsOptions(null)}>
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+              <Button
+                size="lg"
+                fullWidth
+                disabled={!canAfford || isGeneratingMusic}
+                onClick={handleGenerateMusic}
+              >
+                <Music className="w-5 h-5" />
+                {isGeneratingMusic ? "Generating music..." : isFirstTime ? "Generate Music — Free" : `Generate Music — ${cost} tokens`}
+              </Button>
+            </div>
+
+            {!canAfford && (
+              <p className="text-center text-danger text-sm">
+                Not enough tokens. <a href="/coins" className="underline">Buy more</a>
+              </p>
+            )}
+          </motion.div>
         )}
-      </motion.div>
-
-      {/* Cost */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="rounded-2xl bg-surface border border-border p-4 flex items-center justify-between"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
-            <Coins className="w-5 h-5 text-black" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-text">
-              {isFirstTime ? "Your first Dhun is free!" : `${cost} coins`}
-            </p>
-            <p className="text-xs text-text-muted">
-              {isFirstTime
-                ? "No coins needed for your first creation"
-                : `Balance: ${coins} coins`}
-            </p>
-          </div>
-        </div>
-        {isFirstTime && (
-          <span className="text-xs px-3 py-1 rounded-full bg-acid-green/10 text-acid-green font-medium">
-            FREE
-          </span>
-        )}
-      </motion.div>
-
-      {/* Actions */}
-      <div className="pt-4 flex gap-3">
-        <Button variant="outline" size="lg" onClick={() => setStep(2)}>
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <Button
-          size="lg"
-          fullWidth
-          disabled={!canAfford}
-          onClick={handleGenerate}
-        >
-          <Sparkles className="w-5 h-5" />
-          {isFirstTime ? "Create my Dhun" : `Create for ${cost} coins`}
-        </Button>
-      </div>
-
-      {!canAfford && (
-        <p className="text-center text-hot-pink text-sm">
-          Not enough coins. <a href="/coins" className="underline">Buy more</a>
-        </p>
-      )}
+      </AnimatePresence>
     </div>
   );
 }

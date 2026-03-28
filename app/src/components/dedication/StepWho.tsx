@@ -23,7 +23,7 @@ export function StepWho() {
   return (
     <div className="space-y-10">
       <div className="text-center">
-        <h1 className="text-3xl sm:text-4xl font-medium font-[family-name:var(--font-display)]">
+        <h1 className="text-3xl sm:text-4xl font-medium font-[family-name:Poppins]">
           Who is this for?
         </h1>
         <p className="text-text-secondary mt-3 text-sm">
@@ -33,20 +33,20 @@ export function StepWho() {
 
       {/* Name input */}
       <div className="space-y-2">
-        <label className="text-xs text-text-muted uppercase tracking-wider">Their name</label>
+        <label className="text-xs text-text-muted uppercase tracking-wider font-medium">Their name</label>
         <input
           type="text"
           value={dedication.recipientName}
           onChange={(e) => setRecipientName(e.target.value)}
           placeholder="Who are you making this for?"
-          className="w-full px-5 py-4 rounded-2xl bg-surface text-text text-base placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent/30 transition-all shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_2px_12px_rgba(0,0,0,0.3)]"
+          className="w-full px-5 py-4 rounded-2xl bg-bg-card text-text text-base placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 border border-border transition-all"
           autoFocus
         />
       </div>
 
       {/* Occasion */}
       <div className="space-y-2">
-        <label className="text-xs text-text-muted uppercase tracking-wider">Occasion</label>
+        <label className="text-xs text-text-muted uppercase tracking-wider font-medium">Occasion</label>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           {OCCASIONS.map((occ) => (
             <motion.button
@@ -56,8 +56,8 @@ export function StepWho() {
               onClick={() => setOccasion(occ.value)}
               className={`px-4 py-3 rounded-xl text-sm transition-all cursor-pointer ${
                 dedication.occasion === occ.value
-                  ? "bg-accent text-black"
-                  : "bg-surface text-text-secondary hover:text-text shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_2px_8px_rgba(0,0,0,0.2)]"
+                  ? "bg-accent text-white shadow-sm"
+                  : "bg-bg-card text-text-secondary hover:text-text border border-border"
               }`}
             >
               <span className="mr-1.5">{occ.emoji}</span>
@@ -69,7 +69,7 @@ export function StepWho() {
 
       {/* Relationship */}
       <div className="space-y-2">
-        <label className="text-xs text-text-muted uppercase tracking-wider">They are your...</label>
+        <label className="text-xs text-text-muted uppercase tracking-wider font-medium">They are your...</label>
         <div className="flex flex-wrap gap-2">
           {relationships.map((rel) => (
             <motion.button
@@ -79,8 +79,8 @@ export function StepWho() {
               onClick={() => setRelationship(rel.value)}
               className={`px-5 py-2.5 rounded-full text-sm transition-all cursor-pointer ${
                 dedication.relationship === rel.value
-                  ? "bg-accent/15 text-accent"
-                  : "bg-surface text-text-secondary hover:text-text shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_2px_8px_rgba(0,0,0,0.2)]"
+                  ? "bg-accent/10 text-accent border border-accent/20"
+                  : "bg-bg-card text-text-secondary hover:text-text border border-border"
               }`}
             >
               {rel.label}

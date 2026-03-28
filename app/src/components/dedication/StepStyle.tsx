@@ -19,7 +19,7 @@ export function StepStyle() {
   return (
     <div className="space-y-10">
       <div className="text-center">
-        <h1 className="text-3xl sm:text-4xl font-medium font-[family-name:var(--font-display)]">
+        <h1 className="text-3xl sm:text-4xl font-medium font-[family-name:Poppins]">
           Choose the vibe
         </h1>
         <p className="text-text-secondary mt-3 text-sm">
@@ -29,7 +29,7 @@ export function StepStyle() {
 
       {/* Genre */}
       <div className="space-y-2">
-        <label className="text-xs text-text-muted uppercase tracking-wider">Genre</label>
+        <label className="text-xs text-text-muted uppercase tracking-wider font-medium">Genre</label>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           {GENRES.map((genre) => (
             <motion.button
@@ -39,8 +39,8 @@ export function StepStyle() {
               onClick={() => setGenre(genre.value)}
               className={`px-4 py-3.5 rounded-xl text-sm transition-all cursor-pointer ${
                 dedication.genre === genre.value
-                  ? "bg-accent text-black"
-                  : "bg-surface text-text-secondary hover:text-text shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_2px_8px_rgba(0,0,0,0.2)]"
+                  ? "bg-accent text-white shadow-sm"
+                  : "bg-bg-card text-text-secondary hover:text-text border border-border"
               }`}
             >
               {genre.label}
@@ -51,7 +51,7 @@ export function StepStyle() {
 
       {/* Language */}
       <div className="space-y-2">
-        <label className="text-xs text-text-muted uppercase tracking-wider">Language</label>
+        <label className="text-xs text-text-muted uppercase tracking-wider font-medium">Language</label>
         <div className="flex flex-wrap gap-2">
           {LANGUAGES.map((lang) => (
             <motion.button
@@ -61,8 +61,8 @@ export function StepStyle() {
               onClick={() => setLanguage(lang.value)}
               className={`px-5 py-2.5 rounded-full text-sm transition-all cursor-pointer ${
                 dedication.language === lang.value
-                  ? "bg-accent/15 text-accent"
-                  : "bg-surface text-text-secondary hover:text-text shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_2px_8px_rgba(0,0,0,0.2)]"
+                  ? "bg-accent/10 text-accent border border-accent/20"
+                  : "bg-bg-card text-text-secondary hover:text-text border border-border"
               }`}
             >
               {lang.label}
@@ -73,7 +73,7 @@ export function StepStyle() {
 
       {/* Voice */}
       <div className="space-y-2">
-        <label className="text-xs text-text-muted uppercase tracking-wider">Voice</label>
+        <label className="text-xs text-text-muted uppercase tracking-wider font-medium">Voice</label>
         <div className="flex gap-2.5">
           {voices.map((v) => (
             <motion.button
@@ -83,8 +83,8 @@ export function StepStyle() {
               onClick={() => setVoice(v.value)}
               className={`flex-1 px-4 py-3.5 rounded-xl text-sm transition-all cursor-pointer ${
                 dedication.voice === v.value
-                  ? "bg-accent/15 text-accent"
-                  : "bg-surface text-text-secondary hover:text-text shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_2px_8px_rgba(0,0,0,0.2)]"
+                  ? "bg-accent/10 text-accent border border-accent/20"
+                  : "bg-bg-card text-text-secondary hover:text-text border border-border"
               }`}
             >
               {v.label}

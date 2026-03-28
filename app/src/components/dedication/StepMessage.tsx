@@ -26,7 +26,7 @@ export function StepMessage() {
   return (
     <div className="space-y-10">
       <div className="text-center">
-        <h1 className="text-3xl sm:text-4xl font-medium font-[family-name:var(--font-display)]">
+        <h1 className="text-3xl sm:text-4xl font-medium font-[family-name:Poppins]">
           What do you want to say?
         </h1>
         <p className="text-text-secondary mt-3 text-sm">
@@ -37,12 +37,12 @@ export function StepMessage() {
       {/* Message */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-xs text-text-muted uppercase tracking-wider">Your message</label>
+          <label className="text-xs text-text-muted uppercase tracking-wider font-medium">Your message</label>
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={randomizePrompt}
-            className="flex items-center gap-1.5 text-xs text-accent hover:text-accent/80 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 text-xs text-accent hover:text-accent-hover transition-colors cursor-pointer"
           >
             <Shuffle className="w-3 h-3" />
             Inspire me
@@ -53,7 +53,7 @@ export function StepMessage() {
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Tell them something real..."
           rows={4}
-          className="w-full px-5 py-4 rounded-2xl bg-surface text-text text-base placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent/30 transition-all resize-none leading-relaxed shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_2px_12px_rgba(0,0,0,0.3)]"
+          className="w-full px-5 py-4 rounded-2xl bg-bg-card text-text text-base placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 border border-border transition-all resize-none leading-relaxed"
         />
         <p className="text-text-muted text-xs text-right">
           {dedication.message.length > 0
@@ -64,7 +64,7 @@ export function StepMessage() {
 
       {/* Mood */}
       <div className="space-y-2">
-        <label className="text-xs text-text-muted uppercase tracking-wider">Set the mood</label>
+        <label className="text-xs text-text-muted uppercase tracking-wider font-medium">Set the mood</label>
         <div className="flex flex-wrap gap-2">
           {MOODS.map((mood) => (
             <motion.button
@@ -74,8 +74,8 @@ export function StepMessage() {
               onClick={() => setMood(mood.value)}
               className={`px-5 py-2.5 rounded-full text-sm transition-all cursor-pointer ${
                 dedication.mood === mood.value
-                  ? "bg-accent/15 text-accent"
-                  : "bg-surface text-text-secondary hover:text-text shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_2px_8px_rgba(0,0,0,0.2)]"
+                  ? "bg-accent/10 text-accent border border-accent/20"
+                  : "bg-bg-card text-text-secondary hover:text-text border border-border"
               }`}
             >
               {mood.label}

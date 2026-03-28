@@ -1,7 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
-
 interface WaveformLoaderProps {
   bars?: number;
   color?: string;
@@ -14,7 +12,7 @@ const sizeMap = {
   lg: { height: 64, barWidth: 5, gap: 4 },
 };
 
-export function WaveformLoader({ bars = 12, color = "#4ADE80", size = "md" }: WaveformLoaderProps) {
+export function WaveformLoader({ bars = 12, color = "#22C55E", size = "md" }: WaveformLoaderProps) {
   const { height, barWidth, gap } = sizeMap[size];
 
   return (
@@ -23,21 +21,14 @@ export function WaveformLoader({ bars = 12, color = "#4ADE80", size = "md" }: Wa
       style={{ height, gap }}
     >
       {Array.from({ length: bars }).map((_, i) => (
-        <motion.div
+        <div
           key={i}
-          className="rounded-full"
+          className="rounded-full waveform-bar"
           style={{
             width: barWidth,
+            height: height * 0.5,
             backgroundColor: color,
-          }}
-          animate={{
-            height: [height * 0.2, height * 0.8, height * 0.2],
-          }}
-          transition={{
-            duration: 1.2,
-            repeat: Infinity,
-            delay: i * 0.1,
-            ease: "easeInOut",
+            animationDelay: `${i * 0.1}s`,
           }}
         />
       ))}

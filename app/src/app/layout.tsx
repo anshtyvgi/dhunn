@@ -1,24 +1,6 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, DM_Sans } from "next/font/google";
 import "./globals.css";
-
-// Using Space Grotesk (display) and DM Sans (body) as high-quality free alternatives
-// Replace with Clash Display + Neue Montreal when commercial licenses are added
-// Drop the .woff2 files into /public/fonts/ and switch to localFont
-
-const displayFont = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-clash-display",
-  display: "swap",
-  weight: ["400", "500", "600", "700"],
-});
-
-const bodyFont = DM_Sans({
-  subsets: ["latin"],
-  variable: "--font-neue-montreal",
-  display: "swap",
-  weight: ["400", "500", "700"],
-});
+import { AppShell } from "@/components/layout/AppShell";
 
 export const metadata: Metadata = {
   title: "Dhun — Make a song for someone you love",
@@ -38,8 +20,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${displayFont.variable} ${bodyFont.variable} h-full`}>
-      <body suppressHydrationWarning className="min-h-full flex flex-col antialiased">{children}</body>
+    <html lang="en" className="h-full">
+      <head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body suppressHydrationWarning className="min-h-full flex flex-col antialiased">
+        <AppShell>{children}</AppShell>
+      </body>
     </html>
   );
 }
