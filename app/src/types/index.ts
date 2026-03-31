@@ -123,6 +123,7 @@ export const COIN_COSTS = {
 
 export const FREE_COINS = 20;
 export const FREE_PREVIEW_SECONDS = 10;
+export const MAX_AD_UNLOCKS_PER_DAY = 5;
 
 // Occasion metadata
 export const OCCASIONS: { value: Occasion; label: string; emoji: string }[] = [

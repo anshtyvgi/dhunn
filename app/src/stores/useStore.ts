@@ -17,9 +17,13 @@ interface DhunStore {
   // User
   coins: number;
   isFirstTime: boolean;
+  adUnlocksToday: number;
+  adUnlockDate: string; // YYYY-MM-DD
   setCoins: (coins: number) => void;
   deductCoins: (amount: number) => boolean;
   addCoins: (amount: number) => void;
+  useAdUnlock: () => boolean; // returns false if 5/day limit reached
+  getAdUnlocksRemaining: () => number;
 
   // Dedication form
   dedication: DedicationInput;
@@ -63,6 +67,8 @@ export const useStore = create<DhunStore>((set, get) => ({
   // User
   coins: 20, // Free onboarding coins
   isFirstTime: true,
+  adUnlocksToday: 0,
+  adUnlockDate: new Date().toISOString().split("T")[0],
   setCoins: (coins) => set({ coins }),
   deductCoins: (amount) => {
     const { coins } = get();
@@ -71,6 +77,19 @@ export const useStore = create<DhunStore>((set, get) => ({
     return true;
   },
   addCoins: (amount) => set({ coins: get().coins + amount }),
+  useAdUnlock: () => {
+    const today = new Date().toISOString().split("T")[0];
+    const { adUnlockDate, adUnlocksToday } = get();
+    const count = adUnlockDate === today ? adUnlocksToday : 0;
+    if (count >= 5) return false;
+    set({ adUnlocksToday: count + 1, adUnlockDate: today });
+    return true;
+  },
+  getAdUnlocksRemaining: () => {
+    const today = new Date().toISOString().split("T")[0];
+    const { adUnlockDate, adUnlocksToday } = get();
+    return adUnlockDate === today ? 5 - adUnlocksToday : 5;
+  },
 
   // Dedication form
   dedication: { ...DEFAULT_DEDICATION },
