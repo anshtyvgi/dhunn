@@ -138,7 +138,7 @@ export function GlobalPlayer() {
               {/* Seek */}
               <div className="w-full max-w-xs space-y-1">
                 <div className="h-1.5 rounded-full bg-[#F0F0F0] cursor-pointer" onClick={handleSeek}>
-                  <div className="h-full rounded-full bg-gradient-to-r from-[#7B61FF] to-[#FF4D8D] transition-all" style={{ width: `${progress}%` }} />
+                  <div className="h-full rounded-full bg-[#111] transition-all" style={{ width: `${progress}%` }} />
                 </div>
                 <div className="flex justify-between text-[10px] text-[#BBB]">
                   <span>{formatTime(currentTime)}</span>
@@ -160,7 +160,7 @@ export function GlobalPlayer() {
               </div>
 
               {/* Unlock CTA */}
-              <button className="mt-4 px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#7B61FF] to-[#FF4D8D] text-white text-sm font-semibold cursor-pointer flex items-center gap-2">
+              <button className="mt-4 px-6 py-2.5 rounded-xl bg-[#111] text-white text-sm font-semibold cursor-pointer hover:bg-[#333] transition-colors flex items-center gap-2">
                 <Lock className="w-3.5 h-3.5" /> Unlock full · 10 coins
               </button>
             </div>
@@ -200,7 +200,7 @@ export function GlobalPlayer() {
       {/* ═══ MINI PLAYER BAR ═══ */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#EAEAEA] lg:ml-[60px]">
         <div className="h-1 bg-[#F0F0F0] cursor-pointer" onClick={handleSeek}>
-          <div className="h-full bg-gradient-to-r from-[#7B61FF] to-[#FF4D8D] transition-all" style={{ width: `${progress}%` }} />
+          <div className="h-full bg-[#111] transition-all" style={{ width: `${progress}%` }} />
         </div>
 
         <div className="flex items-center gap-3 px-4 py-2.5 max-w-[1200px] mx-auto">

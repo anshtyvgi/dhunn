@@ -2,29 +2,38 @@
 
 import { useStore } from "@/stores/useStore";
 import { usePlayerStore } from "@/stores/playerStore";
-import { Play, Pause, Heart, ThumbsDown, Share2, Music, Search } from "lucide-react";
+import { Play, Pause, Heart, Share2, Lock, Music, Plus } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo } from "react";
 
-const grads = ["from-rose-400 to-violet-500", "from-amber-400 to-rose-500", "from-violet-400 to-indigo-500", "from-emerald-400 to-teal-500", "from-pink-400 to-red-500"];
-
-type Tab = "songs" | "liked" | "shared";
-type Sort = "newest" | "oldest";
+const grads = [
+  "from-rose-400 to-violet-500",
+  "from-amber-400 to-rose-500",
+  "from-violet-400 to-indigo-500",
+  "from-emerald-400 to-teal-500",
+  "from-pink-400 to-red-500",
+];
 
 export default function LibraryPage() {
   const generations = useStore((s) => s.generations);
   const player = usePlayerStore();
-  const [tab, setTab] = useState<Tab>("songs");
-  const [sort, setSort] = useState<Sort>("newest");
-  const [search, setSearch] = useState("");
 
-  const filtered = generations
-    .filter((g) => {
-      if (tab === "liked") return g.isPaid; // mock: treat paid as liked
-      if (tab === "shared") return g.isShared;
-      return true;
-    })
-    .filter((g) => !search || g.input.recipientName.toLowerCase().includes(search.toLowerCase()));
+  // Group by person
+  const grouped = useMemo(() => {
+    const groups: Record<string, typeof generations> = {};
+    generations.forEach((gen) => {
+      const name = gen.input.recipientName;
+      if (!groups[name]) groups[name] = [];
+      groups[name].push(gen);
+    });
+    return groups;
+  }, [generations]);
+
+  const personNames = Object.keys(grouped);
+  const mostRecent = generations[0];
+
+  // Drafts = not paid
+  const drafts = generations.filter((g) => !g.isPaid);
 
   const playTrack = (trackId: string, audioUrl: string, title: string, genre: string, mood: string, gradient: string) => {
     if (player.currentTrack?.id === trackId && player.isPlaying) { player.pause(); return; }
@@ -32,105 +41,139 @@ export default function LibraryPage() {
     player.play({ id: trackId, title, artist: "Dhun AI", audioUrl, genre, mood, gradient });
   };
 
-  const tabs: { value: Tab; label: string }[] = [
-    { value: "songs", label: "Songs" },
-    { value: "liked", label: "Liked" },
-    { value: "shared", label: "Shared" },
-  ];
+  if (generations.length === 0) {
+    return (
+      <div className="p-6 lg:p-8 flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-sm">
+          <div className="w-20 h-20 rounded-3xl bg-white border border-[#EAEAEA] flex items-center justify-center mx-auto mb-5">
+            <Music className="w-8 h-8 text-[#DDD]" />
+          </div>
+          <h2 className="text-lg font-bold text-[#111] mb-1.5">No songs yet</h2>
+          <p className="text-sm text-[#999] mb-6">Create your first dedication and it&apos;ll show up here</p>
+          <Link href="/create">
+            <button className="px-6 py-3 rounded-xl bg-[#111] text-white text-sm font-semibold cursor-pointer hover:bg-[#333] transition-colors flex items-center gap-2 mx-auto">
+              <Plus className="w-4 h-4" /> Create your first Dhun
+            </button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto pb-24">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-[#111]">Library</h1>
-        <Link href="/create">
-          <button className="px-4 py-2 rounded-xl bg-[#111] text-white text-xs font-semibold cursor-pointer hover:bg-[#333] transition-colors">+ Create</button>
-        </Link>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-4 mb-4 border-b border-[#EAEAEA]">
-        {tabs.map((t) => (
-          <button key={t.value} onClick={() => setTab(t.value)}
-            className={`pb-2.5 text-sm font-medium cursor-pointer transition-colors border-b-2 ${tab === t.value ? "text-[#111] border-[#111]" : "text-[#999] border-transparent hover:text-[#111]"}`}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Search + Filters */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#EAEAEA]">
-          <Search className="w-4 h-4 text-[#CCC]" />
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search"
-            className="flex-1 bg-transparent text-sm text-[#111] placeholder:text-[#CCC] focus:outline-none" />
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-8 pb-24">
+      {/* ═══ 1. HERO — Most Recent ═══ */}
+      {mostRecent && (
+        <div className="bg-white rounded-2xl border border-[#EAEAEA] overflow-hidden">
+          <div className="flex flex-col sm:flex-row">
+            {/* Poster */}
+            <div className={`sm:w-48 aspect-square sm:aspect-auto bg-gradient-to-br ${grads[0]} relative flex items-center justify-center shrink-0`}>
+              <div className="absolute inset-0 banner-overlay opacity-20" />
+              {mostRecent.tracks[0]?.audioUrl && (
+                <button
+                  onClick={() => playTrack(mostRecent.tracks[0].id, mostRecent.tracks[0].audioUrl!, `For ${mostRecent.input.recipientName}`, mostRecent.input.genre, mostRecent.input.mood, grads[0])}
+                  className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors relative z-10"
+                >
+                  {player.currentTrack?.id === mostRecent.tracks[0].id && player.isPlaying ? (
+                    <Pause className="w-7 h-7 text-white" />
+                  ) : (
+                    <Play className="w-7 h-7 text-white ml-1" />
+                  )}
+                </button>
+              )}
+            </div>
+            {/* Info */}
+            <div className="flex-1 p-5">
+              <p className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">Most Recent</p>
+              <h3 className="text-lg font-bold text-[#111]">For {mostRecent.input.recipientName}</h3>
+              <p className="text-sm text-[#999] capitalize mt-0.5">
+                {mostRecent.input.occasion} · {mostRecent.input.mood} · {mostRecent.input.genre}
+              </p>
+              <div className="flex items-center gap-2 mt-4">
+                {mostRecent.tracks[0]?.audioUrl && (
+                  <button
+                    onClick={() => playTrack(mostRecent.tracks[0].id, mostRecent.tracks[0].audioUrl!, `For ${mostRecent.input.recipientName}`, mostRecent.input.genre, mostRecent.input.mood, grads[0])}
+                    className="px-4 py-2 rounded-lg bg-[#111] text-white text-xs font-semibold cursor-pointer hover:bg-[#333] transition-colors flex items-center gap-1.5"
+                  >
+                    <Play className="w-3 h-3" /> Play
+                  </button>
+                )}
+                <button className="px-4 py-2 rounded-lg bg-[#FAFAFA] border border-[#EAEAEA] text-[#666] text-xs font-semibold cursor-pointer hover:border-[#CCC] transition-colors flex items-center gap-1.5">
+                  <Share2 className="w-3 h-3" /> Share
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-white border border-[#EAEAEA]">
-          <button onClick={() => setSort("newest")} className={`px-2.5 py-1.5 rounded-md text-[11px] font-medium cursor-pointer ${sort === "newest" ? "bg-[#F5F5F5] text-[#111]" : "text-[#999]"}`}>Newest</button>
-          <button onClick={() => setSort("oldest")} className={`px-2.5 py-1.5 rounded-md text-[11px] font-medium cursor-pointer ${sort === "oldest" ? "bg-[#F5F5F5] text-[#111]" : "text-[#999]"}`}>Oldest</button>
-        </div>
-      </div>
+      )}
 
-      {/* Song list */}
-      {filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-[#EAEAEA] p-12 text-center">
-          <Music className="w-6 h-6 text-[#DDD] mx-auto mb-2" />
-          <p className="text-sm text-[#999]">{tab === "songs" ? "No songs yet" : `No ${tab} songs`}</p>
-          <p className="text-xs text-[#CCC] mt-1">Create your first song to see it here</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-2xl border border-[#EAEAEA] divide-y divide-[#F5F5F5]">
-          {filtered.map((gen) =>
-            gen.tracks.map((track, i) => {
-              const isActive = player.currentTrack?.id === track.id;
-              const isThisPlaying = isActive && player.isPlaying;
-              const grad = grads[i % grads.length];
-              return (
-                <div key={track.id}
-                  onClick={() => track.audioUrl && playTrack(track.id, track.audioUrl, `For ${gen.input.recipientName}`, gen.input.genre, gen.input.mood, grad)}
-                  className={`flex items-center gap-4 px-4 py-3 cursor-pointer transition-colors ${isActive ? "bg-[#FAFAFA]" : "hover:bg-[#FAFAFA]"}`}>
-                  {/* Poster */}
-                  <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${grad} flex items-center justify-center shrink-0 relative`}>
-                    {isThisPlaying ? <Pause className="w-4 h-4 text-white" /> : <Play className="w-4 h-4 text-white ml-0.5" />}
-                  </div>
+      {/* ═══ 2. GROUPED BY PERSON ═══ */}
+      {personNames.map((name) => {
+        const gens = grouped[name];
+        const nameHash = name.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+        const emojis = ["💛", "🙏", "🌙", "💕", "✨", "🔥", "🎵"];
+        const emoji = emojis[nameHash % emojis.length];
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-[#111] truncate">For {gen.input.recipientName}</p>
-                      {!gen.isPaid && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded border border-[#EAEAEA] text-[#CCC]">Preview</span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-[#999] capitalize">{gen.input.genre} · {gen.input.mood}</p>
-                    {isActive && (
-                      <div className="mt-1 h-[3px] rounded-full bg-[#F0F0F0] w-full max-w-[200px]">
-                        <div className="h-full rounded-full bg-gradient-to-r from-[#7B61FF] to-[#FF4D8D] transition-all" style={{ width: `${player.progress}%` }} />
+        return (
+          <div key={name}>
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-sm font-bold text-[#111]">For {name}</h3>
+              <span>{emoji}</span>
+              <span className="text-[11px] text-[#CCC]">{gens.length} song{gens.length !== 1 ? "s" : ""}</span>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {gens.map((gen, gi) => (
+                gen.tracks.filter((t) => t.status === "completed").map((track, ti) => {
+                  const grad = grads[(gi + ti) % grads.length];
+                  const isThisPlaying = player.currentTrack?.id === track.id && player.isPlaying;
+                  return (
+                    <div
+                      key={track.id}
+                      className="shrink-0 w-[160px] cursor-pointer group"
+                      onClick={() => track.audioUrl && playTrack(track.id, track.audioUrl, `For ${name}`, gen.input.genre, gen.input.mood, grad)}
+                    >
+                      <div className={`w-full aspect-square rounded-2xl bg-gradient-to-br ${grad} relative flex items-center justify-center overflow-hidden group-hover:shadow-lg transition-shadow`}>
+                        <div className="absolute inset-0 banner-overlay opacity-20" />
+                        <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity relative z-10">
+                          {isThisPlaying ? <Pause className="w-5 h-5 text-white" /> : <Play className="w-5 h-5 text-white ml-0.5" />}
+                        </div>
+                        {!gen.isPaid && (
+                          <div className="absolute top-2 right-2 z-10">
+                            <Lock className="w-3 h-3 text-white/60" />
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                      <p className="text-xs font-semibold text-[#111] mt-2 truncate">Track {ti + 1}</p>
+                      <p className="text-[10px] text-[#999] capitalize">{gen.input.mood} · {gen.input.genre}</p>
+                    </div>
+                  );
+                })
+              ))}
+            </div>
+          </div>
+        );
+      })}
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <button className="w-7 h-7 rounded-full bg-[#FAFAFA] border border-[#EAEAEA] flex items-center justify-center text-[#CCC] hover:text-[#111] hover:border-[#CCC] transition-colors cursor-pointer">
-                      <Heart className="w-3 h-3" />
-                    </button>
-                    <button className="w-7 h-7 rounded-full bg-[#FAFAFA] border border-[#EAEAEA] flex items-center justify-center text-[#CCC] hover:text-[#111] hover:border-[#CCC] transition-colors cursor-pointer">
-                      <ThumbsDown className="w-3 h-3" />
-                    </button>
-                    <button className="w-7 h-7 rounded-full bg-[#FAFAFA] border border-[#EAEAEA] flex items-center justify-center text-[#CCC] hover:text-[#111] hover:border-[#CCC] transition-colors cursor-pointer">
-                      <Share2 className="w-3 h-3" />
-                    </button>
-                    {!gen.isPaid && (
-                      <button className="px-2.5 py-1 rounded-lg border border-[#EAEAEA] text-[10px] font-semibold text-[#888] hover:border-[#CCC] transition-colors cursor-pointer">
-                        Unlock
-                      </button>
-                    )}
-                  </div>
+      {/* ═══ 3. DRAFTS / LOCKED ═══ */}
+      {drafts.length > 0 && (
+        <div>
+          <h3 className="text-sm font-bold text-[#111] mb-3">Drafts & Locked</h3>
+          <div className="bg-white rounded-2xl border border-[#EAEAEA] divide-y divide-[#F5F5F5]">
+            {drafts.map((gen, i) => (
+              <div key={gen.id} className="flex items-center gap-4 px-4 py-3">
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${grads[i % grads.length]} flex items-center justify-center shrink-0 opacity-50`}>
+                  <Lock className="w-4 h-4 text-white" />
                 </div>
-              );
-            })
-          )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-[#111] truncate opacity-60">For {gen.input.recipientName}</p>
+                  <p className="text-[11px] text-[#999] capitalize">{gen.input.occasion} · {gen.input.mood}</p>
+                </div>
+                <button className="px-3 py-1.5 rounded-lg border border-[#EAEAEA] text-[10px] font-semibold text-[#888] hover:border-[#111] hover:text-[#111] transition-colors cursor-pointer flex items-center gap-1">
+                  <Lock className="w-2.5 h-2.5" /> Unlock
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

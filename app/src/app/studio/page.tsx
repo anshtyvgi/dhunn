@@ -1,15 +1,12 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
 import { useStore } from "@/stores/useStore";
-import { Button } from "@/components/ui/Button";
-import { GENRES, LANGUAGES, MOODS } from "@/types";
-import type { VoiceType } from "@/types";
-import { Sparkles, Shuffle, ArrowLeft, Check, Music } from "lucide-react";
-import { OutputScreen } from "@/components/generation/OutputScreen";
-import { generateLyrics, generateMusic, startPolling } from "@/lib/api";
-import type { LyricOption } from "@/lib/api";
+import { usePlayerStore } from "@/stores/playerStore";
+import { Play, Pause, Heart, Share2, ThumbsDown, Sparkles, Lock, RotateCcw, Shuffle, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useRef } from "react";
+import { generateLyrics, generateMusic, startPolling } from "@/lib/api";
+import { COIN_COSTS, GENRES, LANGUAGES, MOODS } from "@/types";
+import type { VoiceType, Mood, Genre, Language } from "@/types";
 
 const voices: { value: VoiceType; label: string }[] = [
   { value: "male", label: "Male" },
@@ -22,272 +19,328 @@ const studioPrompts = [
   "The feeling when it rains and you miss someone...",
   "Dancing alone at midnight, feeling alive...",
   "A letter to my younger self...",
-  "The joy of finding your person...",
   "Letting go of what no longer serves you...",
 ];
 
-const lyricCardColors = [
-  "from-emerald-400/10 to-cyan-400/5 border-emerald-200",
-  "from-violet-400/10 to-indigo-400/5 border-violet-200",
-  "from-rose-400/10 to-amber-400/5 border-rose-200",
+const grads = [
+  "from-rose-400 to-violet-500",
+  "from-amber-400 to-rose-500",
+  "from-violet-400 to-indigo-500",
 ];
 
+type OutputState = "empty" | "generating" | "generated";
+
 export default function StudioPage() {
-  const {
-    dedication, setMessage, setMood, setGenre, setLanguage, setVoice,
-    coins, isFirstTime, deductCoins,
-    generationStatus, setGenerationStatus, setCurrentGeneration,
-  } = useStore();
+  const store = useStore();
+  const player = usePlayerStore();
+  const { dedication, coins, isFirstTime, currentGeneration, generationStatus } = store;
 
-  const [lyricsOptions, setLyricsOptions] = useState<LyricOption[] | null>(null);
-  const [selectedLyrics, setSelectedLyrics] = useState<number | null>(null);
-  const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
-  const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
-  const [step, setStep] = useState<"input" | "lyrics" | "output">("input");
-  const stopPollingRef = useRef<(() => void) | null>(null);
+  const [prompt, setPrompt] = useState("");
+  const [customLyrics, setCustomLyrics] = useState("");
+  const [genre, setGenre] = useState<Genre>("bollywood");
+  const [mood, setMood] = useState<Mood>("romantic");
+  const [language, setLanguage] = useState<Language>("hinglish");
+  const [voice, setVoice] = useState<VoiceType>("female");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [activeTrackIndex, setActiveTrackIndex] = useState(0);
+  const stopRef = useRef<(() => void) | null>(null);
 
-  const showOutput = generationStatus !== "idle" && generationStatus !== "failed";
-  const cost = isFirstTime ? 0 : 6;
-  const canAfford = isFirstTime || coins >= cost;
+  const cost = isFirstTime ? 0 : COIN_COSTS.generate;
 
-  const randomizePrompt = () => {
-    setMessage(studioPrompts[Math.floor(Math.random() * studioPrompts.length)]);
-  };
+  const outputState: OutputState =
+    isGenerating || (generationStatus !== "idle" && generationStatus !== "completed" && generationStatus !== "failed")
+      ? "generating"
+      : generationStatus === "completed" && currentGeneration
+      ? "generated"
+      : "empty";
 
-  const handleWriteLyrics = async () => {
-    if (!dedication.message.trim()) return;
-    setIsGeneratingLyrics(true);
+  const handleCreate = async () => {
+    if (!prompt.trim()) return;
+    setIsGenerating(true);
+    store.setMood(mood);
+    store.setGenre(genre);
+    store.setLanguage(language);
+    store.setVoice(voice);
+    store.setMessage(prompt);
+
+    const input = { ...dedication, recipientName: "Studio Track", mood, genre, language, voice, message: prompt, occasion: "custom" as const, relationship: "custom" as const };
+
     try {
-      const input = { ...dedication, recipientName: "Studio Track", occasion: "custom" as const, relationship: "custom" as const };
       const result = await generateLyrics(input);
-      setLyricsOptions(result.options);
-      setStep("lyrics");
-    } catch (error) {
-      console.error("Lyrics error:", error);
-    } finally {
-      setIsGeneratingLyrics(false);
-    }
-  };
 
-  const handleGenerateMusic = async () => {
-    if (!lyricsOptions || !canAfford) return;
-    if (!isFirstTime) { const success = deductCoins(cost); if (!success) return; }
-    setIsGeneratingMusic(true);
-    setGenerationStatus("generating-tracks");
-    setStep("output");
-    try {
-      const result = await generateMusic({
-        lyrics: lyricsOptions.map((o) => o.lyrics),
-        tags: lyricsOptions.map((o) => o.tags),
-        titles: lyricsOptions.map((o) => o.title),
-        vibes: lyricsOptions.map((o) => o.vibe),
+      if (!isFirstTime && !store.deductCoins(cost)) { setIsGenerating(false); return; }
+
+      store.setGenerationStatus("generating-tracks");
+
+      const musicResult = await generateMusic({
+        lyrics: result.options.map((o) => o.lyrics),
+        tags: result.options.map((o) => o.tags),
+        titles: result.options.map((o) => o.title),
+        vibes: result.options.map((o) => o.vibe),
         recipientName: "Studio Track",
         occasion: "custom",
-        mood: dedication.mood,
-        genre: dedication.genre,
+        mood,
+        genre,
       });
-      const generation = {
-        id: result.id,
-        input: { ...dedication, recipientName: "Studio Track", occasion: "custom" as const, relationship: "custom" as const },
+
+      const gen = {
+        id: musicResult.id,
+        input: { ...dedication, recipientName: "Studio Track", mood, genre, language, voice, occasion: "custom" as const, relationship: "custom" as const },
         status: "generating-tracks" as const,
-        tracks: result.tracks.map((t) => ({ id: t.id, status: t.status as "pending" | "processing" | "completed" | "failed" })),
-        lyrics: lyricsOptions.map((o) => `**${o.title}** — ${o.vibe}\n\n${o.lyrics}`).join("\n\n---\n\n"),
+        tracks: musicResult.tracks.map((t) => ({ id: t.id, status: t.status as "pending" | "processing" | "completed" | "failed" })),
+        lyrics: result.options.map((o) => `${o.title}\n\n${o.lyrics}`).join("\n\n---\n\n"),
         createdAt: new Date().toISOString(),
         isPaid: false,
         isShared: false,
       };
-      setCurrentGeneration(generation);
-      stopPollingRef.current = startPolling(result.id, (statusData) => {
-        const hasAny = statusData.tracks.some((t) => t.status === "completed");
-        const allDone = statusData.status === "completed";
-        setCurrentGeneration({
-          ...generation, status: allDone ? "completed" : hasAny ? "partial" : "generating-tracks",
-          posterUrl: statusData.posterUrl || undefined,
-          tracks: statusData.tracks.map((t) => ({ id: t.id, status: t.status, audioUrl: t.audioUrl || undefined })),
-        });
-        if (allDone) setGenerationStatus("completed");
-        else if (hasAny) setGenerationStatus("partial");
-        else if (statusData.status === "failed") setGenerationStatus("failed");
-      }, (err) => { console.error("Poll error:", err); setGenerationStatus("failed"); }, 5000);
-    } catch (error) {
-      console.error("Music error:", error);
-      setGenerationStatus("failed");
-      if (!isFirstTime) useStore.getState().addCoins(cost);
-    }
+
+      store.setCurrentGeneration(gen);
+
+      stopRef.current = startPolling(musicResult.id, (data) => {
+        const done = data.status === "completed";
+        const updated = { ...gen, status: done ? ("completed" as const) : ("generating-tracks" as const), posterUrl: data.posterUrl || undefined, tracks: data.tracks.map((t) => ({ id: t.id, status: t.status, audioUrl: t.audioUrl || undefined })) };
+        store.setCurrentGeneration(updated);
+        if (done) { store.setGenerationStatus("completed"); store.addGeneration({ ...updated, status: "completed" }); setIsGenerating(false); }
+      }, () => { store.setGenerationStatus("failed"); setIsGenerating(false); if (!isFirstTime) store.addCoins(cost); }, 5000);
+    } catch { setIsGenerating(false); store.setGenerationStatus("failed"); }
   };
 
-  return (
-    <div className="p-5 sm:p-8 lg:p-6 min-h-screen">
-      <AnimatePresence mode="wait">
-        {/* ═══ INPUT + LYRICS — Split Screen ═══ */}
-        {(step === "input" || step === "lyrics") && !showOutput && (
-          <motion.div key="controls" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-1 lg:grid-cols-5 gap-5 max-w-6xl mx-auto">
-            {/* LEFT — Controls (40%) */}
-            <div className="lg:col-span-2 space-y-5">
-              <div className="rounded-[28px] bg-white border border-black/[0.04] p-6 sm:p-8 space-y-6">
-                <div>
-                  <p className="text-sm font-bold text-[#FFC629] uppercase tracking-widest mb-1">Studio</p>
-                  <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Create from scratch.</h1>
-                </div>
+  const playTrack = (trackId: string, audioUrl: string, title: string, g: string, m: string, gradient: string) => {
+    if (player.currentTrack?.id === trackId && player.isPlaying) { player.pause(); return; }
+    if (player.currentTrack?.id === trackId) { player.resume(); return; }
+    player.play({ id: trackId, title, artist: "Dhun AI", audioUrl, genre: g, mood: m, gradient });
+  };
 
-                {/* Prompt */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-bold text-[#999] uppercase tracking-widest">Prompt</label>
-                    <button onClick={randomizePrompt} className="flex items-center gap-1 text-xs text-[#FFC629] font-semibold hover:text-[#E6B000] transition-colors cursor-pointer">
-                      <Shuffle className="w-3 h-3" /> Inspire me
+  const tracks = currentGeneration?.tracks || [];
+
+  return (
+    <div className="flex h-[calc(100vh-56px)] overflow-hidden">
+      {/* ═══ LEFT PANEL — Controls ═══ */}
+      <div className="w-full lg:w-[35%] xl:w-[400px] shrink-0 bg-white border-r border-[#F0F0F0] flex flex-col">
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {/* Header */}
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-[#111]">Studio</h2>
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#111] text-white font-bold uppercase tracking-wider">Pro</span>
+          </div>
+
+          {/* Prompt */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[11px] font-semibold text-[#999] uppercase tracking-wider">Prompt</label>
+              <button onClick={() => setPrompt(studioPrompts[Math.floor(Math.random() * studioPrompts.length)])} className="flex items-center gap-1 text-[10px] text-[#7B61FF] font-semibold cursor-pointer hover:underline">
+                <Shuffle className="w-3 h-3" /> Inspire
+              </button>
+            </div>
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Describe the song you want to create..."
+              rows={3}
+              className="w-full px-4 py-3 rounded-xl bg-[#FAFAFA] text-[#111] text-sm placeholder:text-[#CCC] focus:outline-none focus:ring-2 focus:ring-[#111]/10 border border-[#EAEAEA] resize-none"
+            />
+          </div>
+
+          {/* Tags */}
+          <div className="space-y-3">
+            {/* Genre */}
+            <div>
+              <label className="text-[11px] font-semibold text-[#999] uppercase tracking-wider mb-1.5 block">Genre</label>
+              <div className="flex flex-wrap gap-1">
+                {GENRES.map((g) => (
+                  <button key={g.value} onClick={() => setGenre(g.value)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] cursor-pointer transition-all ${genre === g.value ? "bg-[#111] text-white font-semibold" : "bg-[#FAFAFA] text-[#888] border border-[#EAEAEA]"}`}>
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Mood */}
+            <div>
+              <label className="text-[11px] font-semibold text-[#999] uppercase tracking-wider mb-1.5 block">Mood</label>
+              <div className="flex flex-wrap gap-1">
+                {MOODS.map((m) => (
+                  <button key={m.value} onClick={() => setMood(m.value)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] cursor-pointer transition-all ${mood === m.value ? "bg-[#111] text-white font-semibold" : "bg-[#FAFAFA] text-[#888] border border-[#EAEAEA]"}`}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Language + Voice */}
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="text-[11px] font-semibold text-[#999] uppercase tracking-wider mb-1.5 block">Language</label>
+                <div className="flex flex-wrap gap-1">
+                  {LANGUAGES.map((l) => (
+                    <button key={l.value} onClick={() => setLanguage(l.value)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] cursor-pointer transition-all ${language === l.value ? "bg-[#111] text-white font-semibold" : "bg-[#FAFAFA] text-[#888] border border-[#EAEAEA]"}`}>
+                      {l.label}
                     </button>
-                  </div>
+                  ))}
+                </div>
+              </div>
+              <div className="w-[140px] shrink-0">
+                <label className="text-[11px] font-semibold text-[#999] uppercase tracking-wider mb-1.5 block">Voice</label>
+                <div className="flex gap-1">
+                  {voices.map((v) => (
+                    <button key={v.value} onClick={() => setVoice(v.value)}
+                      className={`flex-1 py-1.5 rounded-lg text-[11px] cursor-pointer transition-all ${voice === v.value ? "bg-[#111] text-white font-semibold" : "bg-[#FAFAFA] text-[#888] border border-[#EAEAEA]"}`}>
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Advanced (collapsible) */}
+          <div>
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-1.5 text-[11px] text-[#999] font-semibold uppercase tracking-wider cursor-pointer hover:text-[#111] transition-colors"
+            >
+              Advanced
+              <ChevronDown className={`w-3 h-3 transition-transform ${showAdvanced ? "rotate-180" : ""}`} />
+            </button>
+            {showAdvanced && (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-[#999] uppercase tracking-wider mb-1.5 block">Custom lyrics</label>
                   <textarea
-                    value={dedication.message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Write anything — a feeling, a story, a mood..."
+                    value={customLyrics}
+                    onChange={(e) => setCustomLyrics(e.target.value)}
+                    placeholder="Write your own lyrics or leave blank for AI..."
                     rows={4}
-                    className="w-full px-4 py-3.5 rounded-2xl bg-[#F5F5F0] text-[#111] text-sm placeholder:text-[#BBB] focus:outline-none focus:ring-2 focus:ring-[#FFC629]/40 border border-black/[0.06] resize-none"
+                    className="w-full px-4 py-3 rounded-xl bg-[#FAFAFA] text-[#111] text-sm placeholder:text-[#CCC] focus:outline-none focus:ring-2 focus:ring-[#111]/10 border border-[#EAEAEA] resize-none"
                   />
                 </div>
+              </div>
+            )}
+          </div>
+        </div>
 
-                {/* Tags */}
-                <div className="space-y-4">
-                  {/* Genre */}
-                  <div>
-                    <label className="text-xs font-bold text-[#999] uppercase tracking-widest mb-2 block">Genre</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {GENRES.map((g) => (
-                        <button key={g.value} onClick={() => setGenre(g.value)}
-                          className={`px-3 py-2 rounded-xl text-xs cursor-pointer transition-all ${dedication.genre === g.value ? "bg-[#111] text-white font-bold" : "bg-[#F5F5F0] text-[#666] hover:bg-[#EDEDEA]"}`}>
-                          {g.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {/* Mood */}
-                  <div>
-                    <label className="text-xs font-bold text-[#999] uppercase tracking-widest mb-2 block">Mood</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {MOODS.map((m) => (
-                        <button key={m.value} onClick={() => setMood(m.value)}
-                          className={`px-3 py-2 rounded-xl text-xs cursor-pointer transition-all ${dedication.mood === m.value ? "bg-[#111] text-white font-bold" : "bg-[#F5F5F0] text-[#666] hover:bg-[#EDEDEA]"}`}>
-                          {m.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {/* Language */}
-                  <div>
-                    <label className="text-xs font-bold text-[#999] uppercase tracking-widest mb-2 block">Language</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {LANGUAGES.map((l) => (
-                        <button key={l.value} onClick={() => setLanguage(l.value)}
-                          className={`px-3 py-2 rounded-xl text-xs cursor-pointer transition-all ${dedication.language === l.value ? "bg-[#111] text-white font-bold" : "bg-[#F5F5F0] text-[#666] hover:bg-[#EDEDEA]"}`}>
-                          {l.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {/* Voice */}
-                  <div>
-                    <label className="text-xs font-bold text-[#999] uppercase tracking-widest mb-2 block">Voice</label>
-                    <div className="flex gap-2">
-                      {voices.map((v) => (
-                        <button key={v.value} onClick={() => setVoice(v.value)}
-                          className={`flex-1 px-3 py-2.5 rounded-xl text-xs cursor-pointer transition-all ${dedication.voice === v.value ? "bg-[#111] text-white font-bold" : "bg-[#F5F5F0] text-[#666] hover:bg-[#EDEDEA]"}`}>
-                          {v.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+        {/* CTA */}
+        <div className="p-4 border-t border-[#F0F0F0] bg-white">
+          <button
+            onClick={handleCreate}
+            disabled={isGenerating || !prompt.trim()}
+            className="w-full py-3.5 rounded-xl bg-[#111] text-white font-semibold text-sm cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:bg-[#333] transition-colors"
+          >
+            <Sparkles className="w-4 h-4" />
+            {isGenerating ? "Creating..." : isFirstTime ? "Generate" : `Generate · ${cost} coins`}
+          </button>
+        </div>
+      </div>
 
-                <Button size="lg" fullWidth disabled={!dedication.message.trim() || isGeneratingLyrics} onClick={handleWriteLyrics} className="!bg-[#FFC629] !text-[#111] !shadow-[0_8px_24px_rgba(255,198,41,0.3)]">
-                  <Sparkles className="w-5 h-5" />
-                  {isGeneratingLyrics ? "Writing lyrics..." : "Write Lyrics"}
-                </Button>
+      {/* ═══ RIGHT PANEL — Output ═══ */}
+      <div className="hidden lg:flex flex-1 flex-col bg-[#F7F7F8] overflow-hidden">
+        {/* EMPTY */}
+        {outputState === "empty" && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center max-w-sm">
+              <div className="w-20 h-20 rounded-3xl bg-white border border-[#EAEAEA] flex items-center justify-center mx-auto mb-5">
+                <Sparkles className="w-8 h-8 text-[#DDD]" />
+              </div>
+              <h3 className="text-lg font-bold text-[#111] mb-1.5">Your tracks will appear here</h3>
+              <p className="text-sm text-[#999]">Write a prompt and configure your style, then generate.</p>
+            </div>
+          </div>
+        )}
+
+        {/* GENERATING */}
+        {outputState === "generating" && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="grid grid-cols-3 gap-4 max-w-3xl mx-auto">
+              {[0, 1, 2].map((i) => {
+                const track = tracks[i];
+                const isReady = track?.status === "completed";
+                return (
+                  <div key={i} className="bg-white rounded-2xl border border-[#EAEAEA] overflow-hidden">
+                    <div className={`aspect-square bg-gradient-to-br ${grads[i]} relative flex items-center justify-center ${!isReady ? "animate-pulse" : ""}`}>
+                      {isReady ? (
+                        <button onClick={() => track.audioUrl && playTrack(track.id, track.audioUrl, `Track ${i + 1}`, genre, mood, grads[i])} className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors">
+                          <Play className="w-6 h-6 text-white ml-0.5" />
+                        </button>
+                      ) : (
+                        <div className="w-8 h-8 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                      )}
+                    </div>
+                    <div className="p-3.5">
+                      {isReady ? (
+                        <>
+                          <p className="text-sm font-semibold text-[#111]">Track {i + 1}</p>
+                          <p className="text-[11px] text-[#999] capitalize mt-0.5">{mood} · {genre}</p>
+                        </>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="h-3 w-2/3 bg-[#F0F0F0] rounded animate-shimmer" />
+                          <div className="h-2.5 w-1/2 bg-[#F5F5F5] rounded animate-shimmer" style={{ animationDelay: "0.15s" }} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="text-center mt-6">
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#111] animate-pulse" />
+                <p className="text-sm text-[#999]">Composing music...</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* GENERATED — identical output UX to Create */}
+        {outputState === "generated" && currentGeneration && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold text-[#111]">Studio Output</h2>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setActiveTrackIndex(Math.max(0, activeTrackIndex - 1))} disabled={activeTrackIndex === 0} className="w-7 h-7 rounded-full border border-[#EAEAEA] flex items-center justify-center text-[#999] hover:text-[#111] disabled:opacity-30 cursor-pointer transition-colors"><ChevronLeft className="w-3.5 h-3.5" /></button>
+                <span className="text-[11px] text-[#999] font-medium px-2">{activeTrackIndex + 1} / {tracks.length}</span>
+                <button onClick={() => setActiveTrackIndex(Math.min(tracks.length - 1, activeTrackIndex + 1))} disabled={activeTrackIndex === tracks.length - 1} className="w-7 h-7 rounded-full border border-[#EAEAEA] flex items-center justify-center text-[#999] hover:text-[#111] disabled:opacity-30 cursor-pointer transition-colors"><ChevronRight className="w-3.5 h-3.5" /></button>
               </div>
             </div>
 
-            {/* RIGHT — Preview (60%) */}
-            <div className="lg:col-span-3">
-              {step === "input" && !lyricsOptions && (
-                <div className="rounded-[28px] bg-white border border-black/[0.04] p-8 h-full flex items-center justify-center min-h-[400px]">
-                  <div className="text-center max-w-sm">
-                    <div className="w-20 h-20 rounded-3xl bg-[#FFF8E1] flex items-center justify-center mx-auto mb-6">
-                      <Music className="w-9 h-9 text-[#FFC629]" />
+            <div className="grid grid-cols-3 gap-4 max-w-3xl mx-auto">
+              {tracks.map((track, i) => {
+                const isActive = activeTrackIndex === i;
+                const isThisPlaying = player.currentTrack?.id === track.id && player.isPlaying;
+                return (
+                  <div key={track.id} onClick={() => setActiveTrackIndex(i)} className={`bg-white rounded-2xl border overflow-hidden cursor-pointer transition-all ${isActive ? "border-[#111] shadow-md ring-1 ring-[#111]/5" : "border-[#EAEAEA] hover:border-[#CCC]"}`}>
+                    <div className={`aspect-square bg-gradient-to-br ${grads[i]} relative flex items-center justify-center`}>
+                      <div className="absolute inset-0 banner-overlay opacity-20" />
+                      <button onClick={(e) => { e.stopPropagation(); track.audioUrl && playTrack(track.id, track.audioUrl, `Track ${i+1}`, currentGeneration.input.genre, currentGeneration.input.mood, grads[i]); }} className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors relative z-10">
+                        {isThisPlaying ? <Pause className="w-6 h-6 text-white" /> : <Play className="w-6 h-6 text-white ml-0.5" />}
+                      </button>
                     </div>
-                    <h3 className="text-xl font-extrabold mb-2">Your preview will appear here</h3>
-                    <p className="text-[#999] text-sm">Write a prompt and hit &quot;Write Lyrics&quot; to see AI-generated song options.</p>
-                  </div>
-                </div>
-              )}
-
-              {step === "lyrics" && lyricsOptions && (
-                <div className="rounded-[28px] bg-white border border-black/[0.04] p-6 sm:p-8 space-y-5">
-                  <div>
-                    <h2 className="text-xl font-extrabold">Pick your vibe</h2>
-                    <p className="text-[#999] text-sm mt-1">AI wrote 3 unique songs. Each becomes a track.</p>
-                  </div>
-
-                  <div className="space-y-4">
-                    {lyricsOptions.map((option, i) => (
-                      <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.15 }}
-                        onClick={() => setSelectedLyrics(selectedLyrics === i ? null : i)}
-                        className={`lyric-card bg-gradient-to-br ${lyricCardColors[i]} border ${selectedLyrics === i ? "ring-2 ring-[#FFC629] shadow-lg" : ""}`}>
-                        <div className="relative z-10">
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <p className="font-bold text-[#111] text-lg">{option.title}</p>
-                              <p className="text-[#888] text-xs mt-0.5">{option.vibe}</p>
-                            </div>
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${selectedLyrics === i ? "bg-[#FFC629]" : "bg-[#F5F5F0] border border-black/[0.06]"}`}>
-                              {selectedLyrics === i && <Check className="w-4 h-4 text-[#111]" />}
-                            </div>
-                          </div>
-                          <p className="text-[#666] text-sm leading-relaxed whitespace-pre-line line-clamp-5">
-                            {option.lyrics.replace(/\[(Verse|Chorus|Bridge)\]/g, "").trim()}
-                          </p>
-                          {selectedLyrics === i && (
-                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-3 pt-3 border-t border-black/[0.06]">
-                              <p className="text-[#333] text-sm leading-relaxed whitespace-pre-line">{option.lyrics}</p>
-                            </motion.div>
-                          )}
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  {/* Cost + Generate */}
-                  <div className="rounded-2xl bg-[#FFF8E1] border border-[#FFC629]/20 p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full token-coin flex items-center justify-center"><span className="text-base">🪙</span></div>
-                      <div>
-                        <p className="text-sm font-bold text-[#111]">{isFirstTime ? "First one's free!" : `${cost} tokens`}</p>
-                        <p className="text-xs text-[#999]">{isFirstTime ? "No tokens needed" : `Balance: ${coins}`}</p>
+                    <div className="p-3.5">
+                      <p className="text-sm font-semibold text-[#111]">Track {i + 1}</p>
+                      <p className="text-[11px] text-[#999] capitalize mt-0.5">{currentGeneration.input.mood} · {currentGeneration.input.genre}</p>
+                      <div className="flex items-center gap-1 mt-3">
+                        <button className="w-7 h-7 rounded-full bg-[#FAFAFA] border border-[#EAEAEA] flex items-center justify-center text-[#CCC] hover:text-red-500 hover:border-red-200 transition-colors cursor-pointer"><Heart className="w-3 h-3" /></button>
+                        <button className="w-7 h-7 rounded-full bg-[#FAFAFA] border border-[#EAEAEA] flex items-center justify-center text-[#CCC] hover:text-[#111] hover:border-[#CCC] transition-colors cursor-pointer"><ThumbsDown className="w-3 h-3" /></button>
+                        <button className="w-7 h-7 rounded-full bg-[#FAFAFA] border border-[#EAEAEA] flex items-center justify-center text-[#CCC] hover:text-[#111] hover:border-[#CCC] transition-colors cursor-pointer"><Share2 className="w-3 h-3" /></button>
+                        {!currentGeneration.isPaid && (
+                          <button className="ml-auto px-2.5 py-1 rounded-lg border border-[#EAEAEA] text-[10px] font-semibold text-[#888] hover:border-[#111] hover:text-[#111] transition-colors cursor-pointer flex items-center gap-1"><Lock className="w-2.5 h-2.5" /> Unlock</button>
+                        )}
                       </div>
                     </div>
                   </div>
-
-                  <div className="flex gap-3">
-                    <Button variant="outline" size="lg" onClick={() => { setStep("input"); setLyricsOptions(null); }}>
-                      <ArrowLeft className="w-4 h-4" />
-                    </Button>
-                    <Button size="lg" fullWidth disabled={!canAfford || isGeneratingMusic} onClick={handleGenerateMusic} className="!bg-[#111] !text-white">
-                      <Music className="w-5 h-5" />
-                      {isGeneratingMusic ? "Generating..." : isFirstTime ? "Generate — Free" : `Generate — ${cost} tokens`}
-                    </Button>
-                  </div>
-                </div>
-              )}
+                );
+              })}
             </div>
-          </motion.div>
-        )}
 
-        {/* ═══ OUTPUT ═══ */}
-        {(step === "output" || showOutput) && (
-          <motion.div key="output" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-3xl mx-auto">
-            <OutputScreen />
-          </motion.div>
+            <div className="flex items-center justify-center gap-3 mt-6">
+              <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#111] text-white text-xs font-semibold cursor-pointer hover:bg-[#333] transition-colors"><Share2 className="w-3.5 h-3.5" /> Share · {COIN_COSTS.shareFull} coins</button>
+              <button onClick={() => { store.setGenerationStatus("idle"); store.setCurrentGeneration(null); setIsGenerating(false); setPrompt(""); }} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#FAFAFA] border border-[#EAEAEA] text-[#999] text-xs font-semibold cursor-pointer hover:border-[#CCC] transition-colors"><RotateCcw className="w-3.5 h-3.5" /> New</button>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      </div>
     </div>
   );
 }
