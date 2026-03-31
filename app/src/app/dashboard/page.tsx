@@ -79,7 +79,7 @@ export default function DashboardPage() {
         </div>
 
         <div>
-          <Link href="/dedicate">
+          <Link href="/create">
             <div
               className="rounded-3xl mesh-gradient-card border border-border p-7 h-full cursor-pointer hover:shadow-xl hover:-translate-y-1 active:scale-[0.98] transition-all relative overflow-hidden group"
             >
@@ -107,7 +107,7 @@ export default function DashboardPage() {
         <p className="text-xs text-text-muted uppercase tracking-wider font-semibold mb-3">Quick create</p>
         <div className="flex gap-3 overflow-x-auto pb-2">
           {quickActions.map((action) => (
-            <Link key={action.label} href="/dedicate">
+            <Link key={action.label} href="/create">
               <div
                 className="flex items-center gap-2.5 px-5 py-3 rounded-2xl bg-bg-card border border-border shadow-sm cursor-pointer whitespace-nowrap hover:border-accent/30 hover:scale-105 hover:-translate-y-0.5 active:scale-95 transition-all"
               >

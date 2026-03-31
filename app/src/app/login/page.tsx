@@ -266,7 +266,7 @@ export default function LoginPage() {
               </div>
               <p className="text-sm text-[#999] mb-8">Enough for your first song — completely free.</p>
               <button
-                onClick={() => router.push("/dedicate")}
+                onClick={() => router.push("/create")}
                 className="w-full py-4 rounded-2xl bg-[#FFC629] text-[#111] font-bold text-base hover:bg-[#FFD04D] transition-colors cursor-pointer flex items-center justify-center gap-2.5 shadow-[0_8px_24px_rgba(255,198,41,0.3)]"
               >
                 <Music className="w-5 h-5" /> Make your first dedication

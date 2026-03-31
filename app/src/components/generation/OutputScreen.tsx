@@ -167,7 +167,7 @@ export function OutputScreen() {
     setGenerationStatus("idle");
     setCurrentGeneration(null);
     resetDedication();
-    router.push("/dedicate");
+    router.push("/create");
   };
 
   return (

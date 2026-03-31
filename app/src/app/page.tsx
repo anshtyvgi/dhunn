@@ -65,7 +65,7 @@ export default function Home() {
       <div className="announcement-bar py-2 px-4 text-center relative z-[60]">
         <p className="text-sm font-semibold text-[#111]">
           🎧 First song is FREE — no card needed &nbsp;
-          <Link href="/dedicate" className="underline font-bold">Create now &rarr;</Link>
+          <Link href="/create" className="underline font-bold">Create now &rarr;</Link>
         </p>
       </div>
 
@@ -82,13 +82,13 @@ export default function Home() {
           <div className="hidden md:flex items-center">
             <div className="flex items-center gap-1 px-2 py-1.5 rounded-full bg-white border border-black/[0.06] shadow-sm">
               <Link href="/studio" className="px-4 py-2 rounded-full text-sm text-text-secondary hover:text-text hover:bg-black/[0.03] transition-all">Studio</Link>
-              <Link href="/dedicate" className="px-4 py-2 rounded-full text-sm text-text-secondary hover:text-text hover:bg-black/[0.03] transition-all">Dedicate</Link>
+              <Link href="/create" className="px-4 py-2 rounded-full text-sm text-text-secondary hover:text-text hover:bg-black/[0.03] transition-all">Dedicate</Link>
               <a href="#pricing" className="px-4 py-2 rounded-full text-sm text-text-secondary hover:text-text hover:bg-black/[0.03] transition-all">Pricing</a>
               <Link href="/login" className="px-4 py-2 rounded-full text-sm text-text-secondary hover:text-text hover:bg-black/[0.03] transition-all">Login</Link>
             </div>
           </div>
 
-          <Link href="/dedicate">
+          <Link href="/create">
             <button className="px-5 py-2.5 rounded-full bg-[#111] text-white text-sm font-semibold hover:bg-[#333] transition-colors cursor-pointer flex items-center gap-2">
               Create a Song <Sparkles className="w-3.5 h-3.5" />
             </button>
@@ -122,7 +122,7 @@ export default function Home() {
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">
-                <Link href="/dedicate">
+                <Link href="/create">
                   <button className="px-7 py-4 rounded-2xl bg-[#FFC629] text-[#111] font-bold text-base hover:bg-[#FFD04D] transition-all cursor-pointer flex items-center gap-2.5 shadow-[0_8px_32px_rgba(255,198,41,0.3)]">
                     <Music className="w-5 h-5" />
                     Dedicate Now
@@ -260,7 +260,7 @@ export default function Home() {
                 <button className="w-12 h-12 rounded-2xl bg-white border border-black/[0.08] flex items-center justify-center hover:bg-[#F5F5F0] transition-colors cursor-pointer">
                   <Shuffle className="w-5 h-5 text-[#999]" />
                 </button>
-                <Link href="/dedicate" className="flex-1">
+                <Link href="/create" className="flex-1">
                   <button className="w-full py-4 rounded-2xl bg-[#111] text-white font-bold text-base hover:bg-[#333] transition-colors cursor-pointer flex items-center justify-center gap-2.5">
                     <Heart className="w-5 h-5" /> Dedicate <ChevronRight className="w-4 h-4" />
                   </button>
@@ -586,7 +586,7 @@ export default function Home() {
             </h2>
             <p className="text-[#999] text-xl mt-6 font-medium">Don&apos;t text. Dedicate.</p>
             <div className="mt-10">
-              <Link href="/dedicate">
+              <Link href="/create">
                 <button className="px-10 py-5 rounded-2xl bg-[#FFC629] text-[#111] font-bold text-lg hover:bg-[#FFD04D] transition-colors cursor-pointer inline-flex items-center gap-3 shadow-[0_12px_40px_rgba(255,198,41,0.3)]">
                   <Music className="w-6 h-6" /> Create Your Song
                 </button>
