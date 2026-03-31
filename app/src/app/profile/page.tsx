@@ -1,170 +1,109 @@
 "use client";
 
-import { useStore } from "@/stores/useStore";
+import { Play, Pause, Settings, Share2, Music, Users, BarChart3 } from "lucide-react";
 import { usePlayerStore } from "@/stores/playerStore";
-import { Play, Pause, Lock, Heart, Share2, Music, Settings } from "lucide-react";
+import { useStore } from "@/stores/useStore";
 import Link from "next/link";
-import { useMemo, useState } from "react";
 
-const grads = ["from-rose-400 to-violet-500", "from-amber-400 to-rose-500", "from-violet-400 to-indigo-500", "from-emerald-400 to-teal-500", "from-pink-400 to-red-500"];
+const creatorTracks = [
+  { id: "ct1", title: "Neon Dreams", genre: "Lo-fi", mood: "Chill", plays: "157K", gradient: "from-indigo-500 to-violet-600", audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+  { id: "ct2", title: "Golden Hour", genre: "Pop", mood: "Happy", plays: "301K", gradient: "from-amber-400 to-orange-500", audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+  { id: "ct3", title: "Static Pulse", genre: "Electronic", mood: "Energetic", plays: "189K", gradient: "from-cyan-500 to-blue-600", audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
+  { id: "ct4", title: "Midnight Serenade", genre: "Bollywood", mood: "Romantic", plays: "92K", gradient: "from-rose-500 to-pink-600", audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+  { id: "ct5", title: "Paper Planes", genre: "Acoustic", mood: "Bittersweet", plays: "68K", gradient: "from-emerald-500 to-teal-600", audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+  { id: "ct6", title: "Signal Fade", genre: "Electronic", mood: "Chill", plays: "45K", gradient: "from-sky-500 to-blue-600", audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
+];
+
+const stats = [
+  { label: "Tracks", value: "23", icon: Music },
+  { label: "Followers", value: "3.2K", icon: Users },
+  { label: "Total Plays", value: "852K", icon: BarChart3 },
+];
 
 export default function ProfilePage() {
-  const generations = useStore((s) => s.generations);
-  const coins = useStore((s) => s.coins);
   const player = usePlayerStore();
-  const [visibility, setVisibility] = useState<"public" | "private">("public");
+  const coins = useStore((s) => s.coins);
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, typeof generations>();
-    generations.forEach((g) => {
-      const key = g.input.recipientName || "Myself";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(g);
-    });
-    return map;
-  }, [generations]);
-
-  const totalSongs = generations.length;
-  const totalPeople = grouped.size;
-  const totalPlays = generations.length * 12; // mock
-  const pinned = generations[0];
-
-  const playTrack = (gen: typeof generations[0]) => {
-    const track = gen.tracks.find((t) => t.status === "completed" && t.audioUrl);
-    if (!track?.audioUrl) return;
-    if (player.currentTrack?.id === track.id && player.isPlaying) { player.pause(); return; }
-    if (player.currentTrack?.id === track.id) { player.resume(); return; }
-    player.play({ id: track.id, title: `For ${gen.input.recipientName}`, artist: "Dhun AI", audioUrl: track.audioUrl, genre: gen.input.genre, mood: gen.input.mood, gradient: grads[0] });
+  const play = (t: typeof creatorTracks[0]) => {
+    if (player.currentTrack?.id === t.id && player.isPlaying) { player.pause(); return; }
+    if (player.currentTrack?.id === t.id) { player.resume(); return; }
+    player.play({ id: t.id, title: t.title, artist: "Ansh", audioUrl: t.audioUrl, genre: t.genre, mood: t.mood, gradient: t.gradient });
   };
 
   const isPlaying = (id: string) => player.currentTrack?.id === id && player.isPlaying;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-8">
-
-      {/* ═══ 1. HERO — Identity ═══ */}
-      <div className="bg-white rounded-2xl border border-[#EAEAEA] p-6">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#7B61FF] to-[#FF4D8D] flex items-center justify-center text-2xl">
-              🎧
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-[#111]">You</h1>
-              <p className="text-sm text-[#999]">Making songs for people I care about</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 p-0.5 rounded-md bg-[#FAFAFA] border border-[#EAEAEA]">
-              <button onClick={() => setVisibility("public")} className={`px-2.5 py-1 rounded text-[10px] font-medium cursor-pointer transition-all ${visibility === "public" ? "bg-white text-[#111] shadow-sm" : "text-[#999]"}`}>Public</button>
-              <button onClick={() => setVisibility("private")} className={`px-2.5 py-1 rounded text-[10px] font-medium cursor-pointer transition-all ${visibility === "private" ? "bg-white text-[#111] shadow-sm" : "text-[#999]"}`}>Private</button>
-            </div>
-            <Link href="/settings">
-              <div className="w-8 h-8 rounded-lg bg-[#FAFAFA] border border-[#EAEAEA] flex items-center justify-center text-[#999] hover:text-[#111] hover:border-[#CCC] transition-colors cursor-pointer">
-                <Settings className="w-4 h-4" />
-              </div>
-            </Link>
-          </div>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6 pb-24">
+      {/* Profile header */}
+      <div className="bg-white rounded-2xl border border-[#EAEAEA] overflow-hidden">
+        <div className="h-28 bg-gradient-to-r from-violet-500 via-indigo-500 to-sky-500 relative">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
         </div>
+        <div className="px-5 pb-5 -mt-8 relative">
+          <div className="flex items-end gap-4">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-400 to-indigo-500 border-4 border-white flex items-center justify-center shadow-lg">
+              <span className="text-white font-bold text-2xl">A</span>
+            </div>
+            <div className="flex-1 pb-1">
+              <h1 className="text-lg font-bold text-[#111]">Ansh</h1>
+              <p className="text-xs text-[#999]">Lo-fi / Romantic creator</p>
+            </div>
+            <div className="flex items-center gap-2 pb-1">
+              <Link href="/settings">
+                <button className="w-8 h-8 rounded-lg border border-[#EAEAEA] flex items-center justify-center text-[#999] hover:text-[#111] hover:border-[#CCC] transition-colors cursor-pointer">
+                  <Settings className="w-4 h-4" />
+                </button>
+              </Link>
+              <button className="px-4 py-2 rounded-lg bg-[#111] text-white text-xs font-semibold cursor-pointer hover:bg-[#333] transition-colors flex items-center gap-1.5">
+                <Share2 className="w-3 h-3" /> Share Profile
+              </button>
+            </div>
+          </div>
 
-        {/* Stats */}
-        <div className="flex items-center gap-6 mt-5 pt-5 border-t border-[#F0F0F0]">
-          <div className="text-center">
-            <p className="text-lg font-bold text-[#111]">{totalSongs}</p>
-            <p className="text-[10px] text-[#999] uppercase tracking-wider">Songs</p>
+          <div className="flex gap-6 mt-4">
+            {stats.map((s) => (
+              <div key={s.label} className="flex items-center gap-2">
+                <s.icon className="w-3.5 h-3.5 text-[#999]" />
+                <div>
+                  <span className="text-sm font-bold text-[#111]">{s.value}</span>
+                  <span className="text-[11px] text-[#999] ml-1">{s.label}</span>
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="text-center">
-            <p className="text-lg font-bold text-[#111]">{totalPeople}</p>
-            <p className="text-[10px] text-[#999] uppercase tracking-wider">People</p>
-          </div>
-          <div className="text-center">
-            <p className="text-lg font-bold text-[#111]">{totalPlays}</p>
-            <p className="text-[10px] text-[#999] uppercase tracking-wider">Plays</p>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-sm">🪙</span>
+
+          <div className="mt-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#FAFAFA] border border-[#EAEAEA] w-fit">
+            <span>🪙</span>
             <span className="text-sm font-bold text-[#111]">{coins}</span>
-            <Link href="/coins" className="text-[10px] text-[#7B61FF] font-semibold hover:underline">Buy</Link>
+            <span className="text-xs text-[#999]">coins</span>
+            <Link href="/coins">
+              <span className="text-xs text-[#7B61FF] font-semibold ml-2 cursor-pointer hover:underline">Buy more</span>
+            </Link>
           </div>
         </div>
       </div>
 
-      {/* ═══ 2. PINNED SONG ═══ */}
-      {pinned && (
-        <div>
-          <p className="text-xs font-semibold text-[#999] uppercase tracking-wider mb-3">Pinned</p>
-          <div
-            onClick={() => playTrack(pinned)}
-            className={`relative rounded-2xl bg-gradient-to-br ${grads[0]} overflow-hidden cursor-pointer group`}
-          >
-            <div className="absolute inset-0 banner-overlay opacity-40" />
-            <div className="relative z-10 p-6 flex items-end min-h-[140px]">
-              <div className="flex-1">
-                <p className="text-white/50 text-xs uppercase tracking-wider capitalize">{pinned.input.occasion}</p>
-                <p className="text-white font-bold text-lg mt-1">For {pinned.input.recipientName}</p>
-                <p className="text-white/40 text-xs mt-0.5 capitalize">{pinned.input.mood} · {pinned.input.genre}</p>
-              </div>
-              <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center group-hover:bg-white/30 transition-colors shrink-0">
-                {pinned.tracks[0] && isPlaying(pinned.tracks[0].id)
-                  ? <Pause className="w-5 h-5 text-white" />
-                  : <Play className="w-5 h-5 text-white ml-0.5" />
-                }
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ 3. GROUPED BY PERSON ═══ */}
-      {Array.from(grouped.entries()).map(([name, gens], gi) => (
-        <div key={name}>
-          <p className="text-xs font-semibold text-[#999] uppercase tracking-wider mb-3">
-            For {name} {name === "Myself" ? "🌙" : gi === 0 ? "💛" : "🙏"}
-          </p>
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {gens.map((gen, i) => {
-              const firstTrack = gen.tracks.find((t) => t.status === "completed" && t.audioUrl);
-              return (
-                <div
-                  key={gen.id}
-                  onClick={() => playTrack(gen)}
-                  className="shrink-0 w-[160px] bg-white rounded-xl border border-[#EAEAEA] overflow-hidden hover:shadow-md hover:border-[#CCC] transition-all cursor-pointer"
-                >
-                  <div className={`h-24 bg-gradient-to-br ${grads[i % grads.length]} relative flex items-center justify-center`}>
-                    <div className="absolute inset-0 banner-overlay opacity-30" />
-                    {firstTrack && isPlaying(firstTrack.id)
-                      ? <Pause className="w-5 h-5 text-white relative z-10" />
-                      : <Play className="w-5 h-5 text-white ml-0.5 relative z-10" />
-                    }
-                  </div>
-                  <div className="p-3">
-                    <p className="text-sm font-semibold text-[#111] truncate">For {gen.input.recipientName}</p>
-                    <p className="text-[10px] text-[#BBB] capitalize">{gen.input.mood} · {gen.input.genre}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      {gen.isPaid ? (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded border border-green-200 text-green-600">Unlocked</span>
-                      ) : (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded border border-[#EAEAEA] text-[#CCC] flex items-center gap-0.5"><Lock className="w-2 h-2" />Preview</span>
-                      )}
-                    </div>
-                  </div>
+      {/* Track grid */}
+      <div>
+        <h2 className="text-sm font-bold text-[#111] mb-3">Tracks</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {creatorTracks.map((t) => (
+            <div key={t.id} onClick={() => play(t)} className="cursor-pointer group">
+              <div className={`aspect-square rounded-2xl bg-gradient-to-br ${t.gradient} relative flex items-center justify-center overflow-hidden group-hover:shadow-lg transition-shadow`}>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                <div className="w-12 h-12 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  {isPlaying(t.id) ? <Pause className="w-5 h-5 text-white" /> : <Play className="w-5 h-5 text-white ml-0.5" />}
                 </div>
-              );
-            })}
-          </div>
+                <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1 text-white/60 text-[10px]">
+                  <Play className="w-2.5 h-2.5" />{t.plays}
+                </div>
+              </div>
+              <p className="text-xs font-semibold text-[#111] mt-2 truncate">{t.title}</p>
+              <p className="text-[10px] text-[#999]">{t.genre} · {t.mood}</p>
+            </div>
+          ))}
         </div>
-      ))}
-
-      {/* ═══ Empty state ═══ */}
-      {generations.length === 0 && (
-        <div className="text-center py-12">
-          <Music className="w-8 h-8 text-[#DDD] mx-auto mb-3" />
-          <p className="text-sm text-[#999]">Create your first song to build your profile</p>
-          <Link href="/create">
-            <button className="mt-4 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#7B61FF] to-[#FF4D8D] text-white text-sm font-semibold cursor-pointer">Create a song</button>
-          </Link>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
