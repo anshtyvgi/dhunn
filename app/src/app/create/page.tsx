@@ -176,9 +176,9 @@ export default function CreatePage() {
 
   return (
     <>
-      <div className="flex h-[calc(100vh-56px)] overflow-hidden">
+      <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-56px)] overflow-hidden">
         {/* ═══ LEFT PANEL — Input (35%) ═══ */}
-        <div className="w-full lg:w-[35%] xl:w-[380px] shrink-0 bg-white border-r border-[#F0F0F0] flex flex-col">
+        <div className={`w-full lg:w-[35%] xl:w-[380px] shrink-0 bg-white lg:border-r border-[#F0F0F0] flex flex-col ${outputState !== "empty" ? "hidden lg:flex" : ""}`}>
           <div className="flex-1 overflow-y-auto p-5 space-y-6">
             {/* Who */}
             <div>
@@ -253,7 +253,7 @@ export default function CreatePage() {
         </div>
 
         {/* ═══ RIGHT PANEL — Output (65%) ═══ */}
-        <div className="hidden lg:flex flex-1 flex-col bg-[#F7F7F8] overflow-hidden">
+        <div className={`flex-1 flex-col bg-[#F7F7F8] overflow-y-auto ${outputState === "empty" ? "hidden lg:flex" : "flex"}`}>
 
           {/* ── EMPTY ── */}
           {outputState === "empty" && (
@@ -271,23 +271,23 @@ export default function CreatePage() {
           {/* ── GENERATING ── */}
           {outputState === "generating" && (
             <div className="flex-1 overflow-y-auto p-6">
-              <div className="grid grid-cols-3 gap-4 max-w-3xl mx-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 max-w-3xl mx-auto">
                 {[0, 1, 2].map((i) => {
                   const track = tracks[i];
                   const isReady = track?.status === "completed";
                   return (
-                    <div key={i} className="bg-white rounded-2xl border border-[#EAEAEA] overflow-hidden">
-                      <div className={`aspect-square bg-gradient-to-br ${grads[i]} relative flex items-center justify-center ${!isReady ? "animate-pulse" : ""}`}>
+                    <div key={i} className="bg-white rounded-2xl border border-[#EAEAEA] overflow-hidden flex sm:flex-col">
+                      <div className={`w-24 sm:w-full aspect-square bg-gradient-to-br ${grads[i]} relative flex items-center justify-center shrink-0 ${!isReady ? "animate-pulse" : ""}`}>
                         {isReady ? (
                           <button onClick={() => track.audioUrl && playTrack(track.id, track.audioUrl, `Track ${i + 1}`, currentGeneration!.input.genre, currentGeneration!.input.mood, grads[i])}
-                            className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors">
-                            <Play className="w-6 h-6 text-white ml-0.5" />
+                            className="w-10 sm:w-14 h-10 sm:h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors">
+                            <Play className="w-5 sm:w-6 h-5 sm:h-6 text-white ml-0.5" />
                           </button>
                         ) : (
-                          <div className="w-8 h-8 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                          <div className="w-6 sm:w-8 h-6 sm:h-8 rounded-full border-2 border-white/40 border-t-white animate-spin" />
                         )}
                       </div>
-                      <div className="p-3.5">
+                      <div className="p-3 sm:p-3.5 flex-1 flex flex-col justify-center">
                         {isReady ? (
                           <>
                             <p className="text-sm font-semibold text-[#111]">Track {i + 1}</p>
@@ -341,7 +341,7 @@ export default function CreatePage() {
               </div>
 
               {/* 3 Track Cards */}
-              <div className="grid grid-cols-3 gap-4 max-w-3xl mx-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 max-w-3xl mx-auto">
                 {tracks.map((track, i) => {
                   const isActive = activeTrackIndex === i;
                   const isThisPlaying = player.currentTrack?.id === track.id && player.isPlaying;
@@ -411,7 +411,7 @@ export default function CreatePage() {
 
               {/* ═══ ACTION BAR — Full pricing visible ═══ */}
               <div className="mt-6 bg-white rounded-2xl border border-[#EAEAEA] p-5 max-w-3xl mx-auto">
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
                   {/* Share */}
                   <button onClick={() => setUnlockModal({ action: "share" })}
                     className="flex flex-col items-center gap-2 p-3.5 rounded-xl border border-[#EAEAEA] hover:border-[#CCC] transition-colors cursor-pointer group">

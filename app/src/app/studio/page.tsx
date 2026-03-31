@@ -115,9 +115,9 @@ export default function StudioPage() {
   const tracks = currentGeneration?.tracks || [];
 
   return (
-    <div className="flex h-[calc(100vh-56px)] overflow-hidden">
+    <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-56px)] overflow-hidden">
       {/* ═══ LEFT PANEL — Controls ═══ */}
-      <div className="w-full lg:w-[35%] xl:w-[400px] shrink-0 bg-white border-r border-[#F0F0F0] flex flex-col">
+      <div className={`w-full lg:w-[35%] xl:w-[400px] shrink-0 bg-white lg:border-r border-[#F0F0F0] flex flex-col ${outputState !== "empty" ? "hidden lg:flex" : ""}`}>
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* Header */}
           <div className="flex items-center gap-2">
@@ -235,7 +235,7 @@ export default function StudioPage() {
       </div>
 
       {/* ═══ RIGHT PANEL — Output ═══ */}
-      <div className="hidden lg:flex flex-1 flex-col bg-[#F7F7F8] overflow-hidden">
+      <div className={`flex-1 flex-col bg-[#F7F7F8] overflow-y-auto ${outputState === "empty" ? "hidden lg:flex" : "flex"}`}>
         {/* EMPTY */}
         {outputState === "empty" && (
           <div className="flex-1 flex items-center justify-center">
@@ -252,7 +252,7 @@ export default function StudioPage() {
         {/* GENERATING */}
         {outputState === "generating" && (
           <div className="flex-1 overflow-y-auto p-6">
-            <div className="grid grid-cols-3 gap-4 max-w-3xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 max-w-3xl mx-auto">
               {[0, 1, 2].map((i) => {
                 const track = tracks[i];
                 const isReady = track?.status === "completed";
@@ -305,7 +305,7 @@ export default function StudioPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 max-w-3xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 max-w-3xl mx-auto">
               {tracks.map((track, i) => {
                 const isActive = activeTrackIndex === i;
                 const isThisPlaying = player.currentTrack?.id === track.id && player.isPlaying;

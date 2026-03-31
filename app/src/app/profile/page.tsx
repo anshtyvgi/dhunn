@@ -60,7 +60,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="flex gap-6 mt-4">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 mt-4">
             {stats.map((s) => (
               <div key={s.label} className="flex items-center gap-2">
                 <s.icon className="w-3.5 h-3.5 text-[#999]" />

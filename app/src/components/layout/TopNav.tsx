@@ -66,7 +66,7 @@ export function TopNav() {
 
           {/* Dropdown */}
           {dropdownOpen && (
-            <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl border border-[#EAEAEA] shadow-lg py-1 z-50">
+            <div className="absolute right-0 top-full mt-1 w-[calc(100vw-2rem)] sm:w-56 max-w-[224px] bg-white rounded-xl border border-[#EAEAEA] shadow-lg py-1 z-50">
               {/* Balance */}
               <div className="px-4 py-3 border-b border-[#F0F0F0]">
                 <p className="text-[10px] text-[#999] uppercase tracking-wider font-semibold">Balance</p>

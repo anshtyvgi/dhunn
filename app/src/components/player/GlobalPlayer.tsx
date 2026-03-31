@@ -198,7 +198,7 @@ export function GlobalPlayer() {
       )}
 
       {/* ═══ MINI PLAYER BAR ═══ */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#EAEAEA] lg:ml-[60px]">
+      <div className="fixed bottom-14 lg:bottom-0 left-0 right-0 z-50 bg-white border-t border-[#EAEAEA] lg:ml-[60px]">
         <div className="h-1 bg-[#F0F0F0] cursor-pointer" onClick={handleSeek}>
           <div className="h-full bg-[#111] transition-all" style={{ width: `${progress}%` }} />
         </div>

@@ -214,7 +214,8 @@ export default function CommunityPage() {
       </div>
 
       {/* ═══ RIGHT SIDEBAR — Lyrics + Comments ═══ */}
-      <div className="hidden lg:flex w-[320px] xl:w-[360px] flex-col bg-white border-l border-[#F0F0F0]">
+      {/* Mobile: slide-up sheet triggered by comments button */}
+      <div className={`${showComments ? "fixed inset-x-0 bottom-0 z-50 h-[60vh] rounded-t-2xl shadow-2xl" : "hidden"} lg:relative lg:flex lg:h-auto lg:rounded-none lg:shadow-none w-full lg:w-[320px] xl:w-[360px] flex-col bg-white lg:border-l border-[#F0F0F0]`}>
         {/* Tabs */}
         <div className="flex border-b border-[#F0F0F0]">
           <button onClick={() => setShowComments(false)}

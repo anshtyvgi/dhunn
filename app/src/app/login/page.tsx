@@ -184,7 +184,7 @@ export default function LoginPage() {
                 Sent to <span className="font-semibold text-[#111]">{maskedContact}</span>
               </p>
 
-              <div className="flex gap-3 mb-6">
+              <div className="flex gap-2 sm:gap-3 mb-6">
                 {otp.map((digit, i) => (
                   <input
                     key={i}
@@ -196,7 +196,7 @@ export default function LoginPage() {
                     onChange={(e) => handleOtpChange(i, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(i, e)}
                     autoFocus={i === 0}
-                    className={`w-full aspect-square max-w-[56px] text-center text-2xl font-bold rounded-2xl border-2 transition-all focus:outline-none ${
+                    className={`w-full aspect-square max-w-[48px] sm:max-w-[56px] text-center text-xl sm:text-2xl font-bold rounded-xl sm:rounded-2xl border-2 transition-all focus:outline-none ${
                       digit ? "border-[#FFC629] bg-[#FFF8E1] text-[#111]" : "border-black/[0.06] bg-[#F5F5F0] text-[#111] focus:border-[#FFC629] focus:bg-[#FFF8E1]"
                     }`}
                   />
