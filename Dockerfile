@@ -32,10 +32,12 @@ COPY --from=backend-build /app/backend/node_modules ./backend/node_modules
 COPY --from=backend-build /app/backend/package.json ./backend/
 COPY --from=backend-build /app/backend/prisma ./backend/prisma
 
-# Copy frontend
+# Copy frontend — include all files Next.js needs at runtime
 COPY --from=frontend-build /app/frontend/.next ./frontend/.next
 COPY --from=frontend-build /app/frontend/node_modules ./frontend/node_modules
 COPY --from=frontend-build /app/frontend/package.json ./frontend/
+COPY --from=frontend-build /app/frontend/next.config.ts ./frontend/
+COPY --from=frontend-build /app/frontend/src/middleware.ts ./frontend/src/middleware.ts
 
 # Copy start script
 COPY start.sh /app/start.sh
