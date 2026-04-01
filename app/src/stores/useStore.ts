@@ -20,6 +20,7 @@ interface DhunStore {
   adUnlocksToday: number;
   adUnlockDate: string; // YYYY-MM-DD
   setCoins: (coins: number) => void;
+  setIsFirstTime: (value: boolean) => void;
   deductCoins: (amount: number) => boolean;
   addCoins: (amount: number) => void;
   useAdUnlock: () => boolean; // returns false if 5/day limit reached
@@ -70,6 +71,7 @@ export const useStore = create<DhunStore>((set, get) => ({
   adUnlocksToday: 0,
   adUnlockDate: new Date().toISOString().split("T")[0],
   setCoins: (coins) => set({ coins }),
+  setIsFirstTime: (value) => set({ isFirstTime: value }),
   deductCoins: (amount) => {
     const { coins } = get();
     if (coins < amount) return false;

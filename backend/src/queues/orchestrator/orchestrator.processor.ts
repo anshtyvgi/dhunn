@@ -77,6 +77,7 @@ export class OrchestratorProcessor extends WorkerHost {
       return;
     }
 
+    this.logger.log(`[session:${session.id}] Starting orchestration`);
     await this.generateService.markPromptProcessing(session.id);
 
     try {
@@ -133,7 +134,7 @@ export class OrchestratorProcessor extends WorkerHost {
       ]);
     } catch (error) {
       this.logger.error(
-        `Failed to orchestrate session ${session.id}: ${(error as Error).message}`,
+        `[session:${session.id}] Orchestration failed: ${(error as Error).message}`,
       );
       await this.generateService.markOrchestratorFailed(
         session.id,

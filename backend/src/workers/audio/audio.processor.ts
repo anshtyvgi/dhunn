@@ -25,11 +25,14 @@ export class AudioProcessor extends WorkerHost {
     }
 
     const song = await this.generateService.getSongWithSession(job.data.songId);
+    const sid = song.sessionId; // correlation ID
 
     if (song.audioUrl) {
+      this.logger.log(`[session:${sid}] Song ${song.id} already has audio, skipping`);
       return;
     }
 
+    this.logger.log(`[session:${sid}] Starting audio generation for song ${song.id}`);
     await this.generateService.markAudioProcessing(song.id);
 
     try {
@@ -38,15 +41,17 @@ export class AudioProcessor extends WorkerHost {
         tags: song.tags,
       });
 
+      this.logger.log(`[session:${sid}] WAN task ${generated.taskId} completed for song ${song.id}`);
       await this.generateService.markAudioProcessing(song.id, generated.taskId);
 
-      const key = `sessions/${song.sessionId}/songs/${song.id}.mp3`;
+      const key = `sessions/${sid}/songs/${song.id}.mp3`;
       const uploaded = await this.r2Service.uploadBuffer({
         key,
         body: generated.buffer,
         contentType: generated.mimeType,
       });
 
+      this.logger.log(`[session:${sid}] Audio uploaded for song ${song.id}`);
       await this.generateService.markAudioReady({
         songId: song.id,
         audioUrl: uploaded.url,
@@ -54,7 +59,7 @@ export class AudioProcessor extends WorkerHost {
       });
     } catch (error) {
       this.logger.error(
-        `Audio generation failed for song ${song.id}: ${(error as Error).message}`,
+        `[session:${sid}] Audio generation failed for song ${song.id}: ${(error as Error).message}`,
       );
       await this.generateService.markAudioFailed(
         song.id,

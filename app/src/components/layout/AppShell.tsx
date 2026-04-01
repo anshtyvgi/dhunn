@@ -14,12 +14,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const setCoins = useStore((s) => s.setCoins);
 
+  const setIsFirstTime = useStore((s) => s.setIsFirstTime);
+
   useEffect(() => {
     fetch("/api/users/me")
       .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data?.coins != null) setCoins(data.coins); })
+      .then((data) => {
+        if (data?.coins != null) setCoins(data.coins);
+        if (data?.isFirstGeneration != null) setIsFirstTime(data.isFirstGeneration);
+      })
       .catch(() => {});
-  }, [setCoins]);
+  }, [setCoins, setIsFirstTime]);
 
   const isAppRoute = APP_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(route + "/")

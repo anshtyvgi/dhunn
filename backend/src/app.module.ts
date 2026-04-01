@@ -13,6 +13,7 @@ import { GenerateModule } from './modules/generate/generate.module';
 import { SongsModule } from './modules/songs/songs.module';
 import { CommunityModule } from './modules/community/community.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { UsersModule } from './modules/users/users.module';
 import { GeminiService } from './providers/gemini/gemini.service';
 import { WanService } from './providers/wan/wan.service';
@@ -57,6 +58,7 @@ import { CoverProcessor } from './workers/cover/cover.processor';
     SongsModule,
     CommunityModule,
     PaymentsModule,
+    AdminModule,
   ],
   providers: [
     GeminiService,

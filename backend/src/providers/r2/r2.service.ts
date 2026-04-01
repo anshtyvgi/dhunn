@@ -37,6 +37,7 @@ export class R2Service {
     body: Buffer;
     contentType: string;
   }) {
+    // Objects are private by default. Use getPresignedUrl() for authenticated access.
     const upload = new Upload({
       client: this.client,
       params: {
@@ -44,6 +45,7 @@ export class R2Service {
         Key: params.key,
         Body: params.body,
         ContentType: params.contentType,
+        ACL: 'private',
       },
     });
 

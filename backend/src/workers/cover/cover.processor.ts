@@ -25,11 +25,14 @@ export class CoverProcessor extends WorkerHost {
     }
 
     const song = await this.generateService.getSongWithSession(job.data.songId);
+    const sid = song.sessionId; // correlation ID
 
     if (song.coverImageUrl) {
+      this.logger.log(`[session:${sid}] Song ${song.id} already has cover, skipping`);
       return;
     }
 
+    this.logger.log(`[session:${sid}] Starting cover generation for song ${song.id}`);
     await this.generateService.markCoverProcessing(song.id);
 
     try {
@@ -40,13 +43,14 @@ export class CoverProcessor extends WorkerHost {
       });
 
       const extension = generated.mimeType.includes('png') ? 'png' : 'jpg';
-      const key = `sessions/${song.sessionId}/covers/${song.id}.${extension}`;
+      const key = `sessions/${sid}/covers/${song.id}.${extension}`;
       const uploaded = await this.r2Service.uploadBuffer({
         key,
         body: generated.buffer,
         contentType: generated.mimeType,
       });
 
+      this.logger.log(`[session:${sid}] Cover uploaded for song ${song.id}`);
       await this.generateService.markCoverReady({
         songId: song.id,
         coverImageUrl: uploaded.url,
@@ -54,7 +58,7 @@ export class CoverProcessor extends WorkerHost {
       });
     } catch (error) {
       this.logger.error(
-        `Cover generation failed for song ${song.id}: ${(error as Error).message}`,
+        `[session:${sid}] Cover generation failed for song ${song.id}: ${(error as Error).message}`,
       );
       await this.generateService.markCoverFailed(song.id);
       throw error;

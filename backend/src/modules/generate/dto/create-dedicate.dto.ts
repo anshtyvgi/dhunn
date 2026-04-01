@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   IsArray,
   IsEnum,
   IsOptional,
@@ -72,14 +73,18 @@ export class LyricPreviewOptionDto {
   vibe!: string;
 
   @IsString()
+  @MaxLength(5000)
   lyrics!: string;
 
   @IsArray()
+  @ArrayMaxSize(20)
   @IsString({ each: true })
+  @MaxLength(100, { each: true })
   tags!: string[];
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   coverPrompt?: string;
 }
 
@@ -113,6 +118,7 @@ export class CreateDedicateDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(3)
   @ValidateNested({ each: true })
   @Type(() => LyricPreviewOptionDto)
   lyricOptions?: LyricPreviewOptionDto[];

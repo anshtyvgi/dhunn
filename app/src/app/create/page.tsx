@@ -54,8 +54,45 @@ export default function CreatePage() {
 
   const stopRef = useRef<(() => void) | null>(null);
 
+  // Cleanup polling on unmount
   useEffect(() => {
     return () => { stopRef.current?.(); };
+  }, []);
+
+  // Resume polling if there's an in-progress generation (e.g. after page refresh)
+  useEffect(() => {
+    if (
+      currentGeneration &&
+      generationStatus !== "completed" &&
+      generationStatus !== "failed" &&
+      generationStatus !== "idle" &&
+      !stopRef.current
+    ) {
+      setIsGenerating(true);
+      stopRef.current = startPolling(currentGeneration.id, (data) => {
+        const done = data.status === "completed";
+        const updated = {
+          ...currentGeneration,
+          status: done ? ("completed" as const) : ("generating-tracks" as const),
+          posterUrl: data.posterUrl || undefined,
+          tracks: data.tracks.map((t) => ({ id: t.id, status: t.status, audioUrl: t.audioUrl || undefined })),
+        };
+        store.setCurrentGeneration(updated);
+        if (done) {
+          store.setGenerationStatus("completed");
+          store.addGeneration({ ...updated, status: "completed" });
+          setIsGenerating(false);
+        }
+        if (data.status === "failed") {
+          store.setGenerationStatus("failed");
+          setIsGenerating(false);
+        }
+      }, () => {
+        store.setGenerationStatus("failed");
+        setIsGenerating(false);
+      }, 5000);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const cost = isFirstTime ? 0 : COIN_COSTS.generate;

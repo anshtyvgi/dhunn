@@ -3,23 +3,61 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminStore } from "@/lib/adminStore";
 
 const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS ?? "").split(",").filter(Boolean);
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api";
 
 async function assertAdmin() {
-  const { userId } = await auth();
+  const { userId, getToken } = await auth();
   if (!userId || ADMIN_USER_IDS.length === 0 || !ADMIN_USER_IDS.includes(userId)) {
-    return false;
+    return null;
   }
-  return true;
+  const token = await getToken();
+  return { userId, token };
+}
+
+async function proxyToBackend(path: string, token: string | null) {
+  const response = await fetch(`${API_BASE_URL}/admin/${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    cache: "no-store",
+  });
+  if (!response.ok) return null;
+  return response.json();
 }
 
 export async function GET(request: NextRequest) {
-  if (!(await assertAdmin())) {
+  const admin = await assertAdmin();
+  if (!admin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
   const { searchParams } = new URL(request.url);
   const module = searchParams.get("module");
-  const store = getAdminStore();
 
+  // Modules backed by real database via backend API
+  switch (module) {
+    case "dashboard": {
+      const data = await proxyToBackend("dashboard", admin.token);
+      if (data) return NextResponse.json(data);
+      break; // fall through to mock if backend unavailable
+    }
+    case "users": {
+      const data = await proxyToBackend("users", admin.token);
+      if (data) return NextResponse.json(data);
+      break;
+    }
+    case "transactions": {
+      const data = await proxyToBackend("transactions", admin.token);
+      if (data) return NextResponse.json(data);
+      break;
+    }
+    case "jobs": {
+      const data = await proxyToBackend("sessions", admin.token);
+      if (data) return NextResponse.json(data);
+      break;
+    }
+  }
+
+  // Fallback to in-memory store for modules not yet migrated
+  const store = getAdminStore();
   switch (module) {
     case "dashboard": {
       const totalUsers = store.users.length;
@@ -30,12 +68,9 @@ export async function GET(request: NextRequest) {
       const failedJobs = store.jobs.filter((j) => j.status === "failed").length;
       const queuedJobs = store.jobs.filter((j) => j.status === "queued" || j.status === "running").length;
       const pendingReports = store.reports.filter((r) => r.status === "pending").length;
-      const conversionRate = totalUsers > 0 ? Math.round((store.users.filter((u) => u.totalSpent > 0).length / totalUsers) * 100) : 0;
-      const avgCoinsPerUser = totalUsers > 0 ? Math.round(store.users.reduce((s, u) => s + u.totalSpent, 0) / totalUsers) : 0;
-
       return NextResponse.json({
         totalUsers, activeUsers, totalSongs, totalRevenue, totalCoinsSpent,
-        failedJobs, queuedJobs, pendingReports, conversionRate, avgCoinsPerUser,
+        failedJobs, queuedJobs, pendingReports,
         recentTransactions: store.transactions.slice(0, 5),
         recentJobs: store.jobs.slice(0, 5),
       });
@@ -67,7 +102,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await assertAdmin())) {
+  const admin = await assertAdmin();
+  if (!admin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const body = await request.json();
