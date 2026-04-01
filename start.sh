@@ -14,7 +14,7 @@ sleep 2
 
 # Start frontend on the PORT Render assigns (default 10000)
 cd /app/frontend
-NODE_ENV=production npx next start -p ${PORT:-10000} &
+NODE_ENV=production npx next start -H 0.0.0.0 -p ${PORT:-10000} &
 FRONTEND_PID=$!
 
 # If either exits, shut down both
