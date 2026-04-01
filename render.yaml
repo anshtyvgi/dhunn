@@ -1,0 +1,103 @@
+databases:
+  - name: dhunn-postgres
+    databaseName: dhun
+    user: dhun
+    plan: starter
+
+services:
+  - type: keyvalue
+    name: dhunn-redis
+    plan: starter
+    maxmemoryPolicy: noeviction
+
+  - type: web
+    name: dhunn-api
+    runtime: node
+    rootDir: backend
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /api/community/feed
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: API_PREFIX
+        value: api
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dhunn-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: dhunn-redis
+          property: connectionString
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_TEXT_MODEL
+        value: gemini-2.5-flash
+      - key: GEMINI_IMAGE_MODEL
+        value: gemini-2.0-flash-preview-image-generation
+      - key: WAN_API_KEY
+        sync: false
+      - key: WAN_BASE_URL
+        value: https://api.wavespeed.ai/api/v3
+      - key: WAN_AUDIO_MODEL
+        value: wavespeed-ai/ace-step-1.5
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: dhunn-web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: PAYMENTS_WEBHOOK_SECRET
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        value: damrooh
+      - key: R2_PUBLIC_BASE_URL
+        value: https://pub-8dbb25dae1cc41a9b7ac5080930785f3.r2.dev
+      - key: R2_ENDPOINT
+        value: https://af87b3b5ea80b0d856b1ea1813508845.r2.cloudflarestorage.com
+      - key: DEDICATE_GENERATION_COST
+        value: 6
+      - key: INITIAL_FREE_COINS
+        value: 20
+      - key: SESSION_POLL_TIMEOUT_MS
+        value: 420000
+      - key: SESSION_POLL_INTERVAL_MS
+        value: 5000
+
+  - type: web
+    name: dhunn-web
+    runtime: node
+    rootDir: app
+    plan: starter
+    autoDeploy: true
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_BASE_URL
+        fromService:
+          type: web
+          name: dhunn-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: ADMIN_USER_IDS
+        sync: false

@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SessionType {
+  DEDICATE
+  STUDIO
+}
+
+enum SessionStatus {
+  QUEUED
+  PROCESSING_PROMPT
+  PROCESSING_ASSETS
+  PARTIAL
+  COMPLETED
+  FAILED
+}
+
+enum SongStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+  PUBLISHED
+}
+
+enum AssetStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum TransactionType {
+  DEBIT
+  CREDIT
+  REFUND
+  PURCHASE
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum ShareVisibility {
+  PRIVATE
+  PUBLIC_PREVIEW
+  PUBLIC_UNLOCKED
+}
+
+enum ShareStatus {
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id                 String              @id @default(cuid())
+  clerkUserId        String              @unique
+  email              String?             @unique
+  username           String?
+  firstName          String?
+  lastName           String?
+  imageUrl           String?
+  coins              Int                 @default(0)
+  onboardingRewarded Boolean             @default(false)
+  sessions           GenerationSession[]
+  transactions       Transaction[]
+  shares             Share[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([createdAt])
+}
+
+model GenerationSession {
+  id           String            @id @default(cuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         SessionType
+  status       SessionStatus     @default(QUEUED)
+  prompt       Json?
+  input        Json
+  tags         String[]
+  coinCost     Int
+  failedReason String?
+  refundedAt   DateTime?
+  completedAt  DateTime?
+  songs        Song[]
+  transactions Transaction[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+model Song {
+  id              String            @id @default(cuid())
+  sessionId       String
+  session         GenerationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  variantIndex    Int
+  title           String
+  vibe            String?
+  lyrics          String
+  tags            String[]
+  prompt          String?
+  status          SongStatus        @default(PENDING)
+  coverStatus     AssetStatus       @default(PENDING)
+  wanTaskId       String?
+  audioUrl        String?
+  audioStorageKey String?
+  coverImageUrl   String?
+  coverStorageKey String?
+  durationSeconds Int?
+  publishedAt     DateTime?
+  shares          Share[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([sessionId, variantIndex])
+  @@index([sessionId, status])
+  @@index([publishedAt])
+}
+
+model Transaction {
+  id          String             @id @default(cuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId   String?
+  session     GenerationSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  type        TransactionType
+  status      TransactionStatus  @default(COMPLETED)
+  amount      Int
+  description String
+  metadata    Json?
+  externalRef String?            @unique
+  createdAt   DateTime           @default(now())
+
+  @@index([userId, createdAt])
+  @@index([sessionId, createdAt])
+}
+
+model Share {
+  id          String          @id @default(cuid())
+  songId       String
+  song         Song            @relation(fields: [songId], references: [id], onDelete: Cascade)
+  ownerId      String
+  owner        User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  slug         String          @unique
+  title        String?
+  description  String?
+  visibility   ShareVisibility @default(PRIVATE)
+  status       ShareStatus     @default(ACTIVE)
+  previewSecs  Int             @default(10)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([ownerId, createdAt])
+  @@index([visibility, status, createdAt])
+}

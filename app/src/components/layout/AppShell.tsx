@@ -1,6 +1,8 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { useStore } from "@/stores/useStore";
 import { Sidebar } from "./Sidebar";
 import { TopNav } from "./TopNav";
 import { BottomNav } from "./BottomNav";
@@ -10,6 +12,15 @@ const APP_ROUTES = ["/create", "/studio", "/explore", "/library", "/community", 
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const setCoins = useStore((s) => s.setCoins);
+
+  useEffect(() => {
+    fetch("/api/users/me")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.coins != null) setCoins(data.coins); })
+      .catch(() => {});
+  }, [setCoins]);
+
   const isAppRoute = APP_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(route + "/")
   );

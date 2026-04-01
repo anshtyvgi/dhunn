@@ -1,7 +1,21 @@
+import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminStore } from "@/lib/adminStore";
 
+const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS ?? "").split(",").filter(Boolean);
+
+async function assertAdmin() {
+  const { userId } = await auth();
+  if (!userId || (ADMIN_USER_IDS.length > 0 && !ADMIN_USER_IDS.includes(userId))) {
+    return false;
+  }
+  return true;
+}
+
 export async function GET(request: NextRequest) {
+  if (!(await assertAdmin())) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const { searchParams } = new URL(request.url);
   const module = searchParams.get("module");
   const store = getAdminStore();
@@ -53,6 +67,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await assertAdmin())) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const body = await request.json();
   const { action } = body;
   const store = getAdminStore();

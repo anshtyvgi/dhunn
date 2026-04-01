@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useStore } from "@/stores/useStore";
+import { useClerk } from "@clerk/nextjs";
 import { Coins, ChevronDown, User, Settings, LogOut, CreditCard } from "lucide-react";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
@@ -19,6 +20,7 @@ const pageTitles: Record<string, string> = {
 export function TopNav() {
   const pathname = usePathname();
   const coins = useStore((s) => s.coins);
+  const { signOut } = useClerk();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -105,7 +107,7 @@ export function TopNav() {
 
               <button
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#999] hover:bg-[#FAFAFA] hover:text-red-500 transition-colors cursor-pointer"
-                onClick={() => setDropdownOpen(false)}
+                onClick={() => { setDropdownOpen(false); signOut({ redirectUrl: "/" }); }}
               >
                 <LogOut className="w-4 h-4" />
                 Log out

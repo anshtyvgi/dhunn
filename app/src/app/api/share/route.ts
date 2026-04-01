@@ -34,21 +34,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing generation ID" }, { status: 400 });
     }
 
-    // Also check the generation store for audio data
-    const generation = global.generationStore?.get(generationId);
-    const firstCompletedTrack = generation?.tracks.find((t) => t.status === "completed");
-
     const shared: SharedDedication = {
       id: generationId,
-      recipientName: recipientName || generation?.tracks[0]?.title || "Someone special",
+      recipientName: recipientName || "Someone special",
       occasion: occasion || "love",
       mood: mood || "romantic",
       genre: genre || "pop",
       message: message || "",
       creatorName: creatorName || "A friend",
-      posterUrl: posterUrl || generation?.posterUrl || null,
-      audioUrl: audioUrl || firstCompletedTrack?.audioUrl || null,
-      lyrics: lyrics || generation?.tracks.map((t) => t.lyrics).filter(Boolean).join("\n\n---\n\n") || null,
+      posterUrl: posterUrl || null,
+      audioUrl: audioUrl || null,
+      lyrics: lyrics || null,
       isPaid: true,
       createdAt: new Date().toISOString(),
     };
@@ -84,39 +80,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(shared);
   }
 
-  // Fall back to generation store for preview data
-  const generation = global.generationStore?.get(id);
-  if (generation) {
-    const firstCompletedTrack = generation.tracks.find((t) => t.status === "completed");
-    return NextResponse.json({
-      id,
-      recipientName: generation.tracks[0]?.title || "Someone special",
-      occasion: "love",
-      mood: "romantic",
-      genre: "pop",
-      message: "",
-      creatorName: "A friend",
-      posterUrl: generation.posterUrl,
-      audioUrl: firstCompletedTrack?.audioUrl || null,
-      lyrics: generation.tracks.map((t) => t.lyrics).filter(Boolean).join("\n\n---\n\n"),
-      isPaid: false,
-      createdAt: generation.createdAt,
-    });
-  }
-
-  // Not found — return mock data for demo
-  return NextResponse.json({
-    id,
-    recipientName: "Someone special",
-    occasion: "love",
-    mood: "romantic",
-    genre: "pop",
-    message: "You mean the world to me",
-    creatorName: "A friend",
-    posterUrl: null,
-    audioUrl: null,
-    lyrics: null,
-    isPaid: false,
-    createdAt: new Date().toISOString(),
-  });
+  return NextResponse.json({ error: "Not found" }, { status: 404 });
 }

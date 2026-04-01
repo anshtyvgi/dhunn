@@ -7,9 +7,10 @@ import {
 } from "lucide-react";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { COIN_COSTS, FREE_PREVIEW_SECONDS, MAX_AD_UNLOCKS_PER_DAY } from "@/types";
-import type { Mood, Generation, Track } from "@/types";
+import type { Mood, Generation } from "@/types";
 import { usePlayerStore } from "@/stores/playerStore";
 import { UnlockModal } from "@/components/ui/UnlockModal";
+import { generateLyrics, generateMusic, startPolling } from "@/lib/api";
 
 const moods: { value: Mood; label: string; emoji: string }[] = [
   { value: "romantic", label: "Romantic", emoji: "💕" },
@@ -33,11 +34,6 @@ const grads = [
   "from-violet-400 to-indigo-500",
 ];
 
-const mockAudioUrls = [
-  "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-  "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-  "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-];
 
 type OutputState = "empty" | "generating" | "generated";
 type UnlockAction = "unlock" | "share" | "download" | "fullPack";
@@ -56,12 +52,10 @@ export default function CreatePage() {
   const [unlockedTracks, setUnlockedTracks] = useState<Set<string>>(new Set());
   const [likedTracks, setLikedTracks] = useState<Set<string>>(new Set());
 
-  // Timers for mock generation
-  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const stopRef = useRef<(() => void) | null>(null);
 
-  // Cleanup timers
   useEffect(() => {
-    return () => timersRef.current.forEach(clearTimeout);
+    return () => { stopRef.current?.(); };
   }, []);
 
   const cost = isFirstTime ? 0 : COIN_COSTS.generate;
@@ -74,8 +68,7 @@ export default function CreatePage() {
       ? "generated"
       : "empty";
 
-  // Client-side mock generation — always works, no API needed
-  const handleCreate = useCallback(() => {
+  const handleCreate = useCallback(async () => {
     if (!nameInput.trim()) return;
     setIsGenerating(true);
     setUnlockedTracks(new Set());
@@ -90,58 +83,65 @@ export default function CreatePage() {
       return;
     }
 
-    store.setGenerationStatus("generating-tracks");
+    const input = { ...dedication, recipientName: nameInput, mood: selectedMood };
 
-    const genId = crypto.randomUUID();
-    const baseTracks: Track[] = [
-      { id: `${genId}-t0`, status: "processing" },
-      { id: `${genId}-t1`, status: "processing" },
-      { id: `${genId}-t2`, status: "processing" },
-    ];
+    try {
+      store.setGenerationStatus("generating-prompt");
+      const lyricsResult = await generateLyrics(input);
 
-    const gen: Generation = {
-      id: genId,
-      input: { ...dedication, recipientName: nameInput, mood: selectedMood },
-      status: "generating-tracks",
-      tracks: baseTracks,
-      lyrics: `[Verse]\nA ${selectedMood} melody for ${nameInput}\nEvery moment is a song with you\n\n[Chorus]\nThis is your dhun, your melody\nA song that speaks what words can't say\nFrom my heart to yours today`,
-      createdAt: new Date().toISOString(),
-      isPaid: false,
-      isShared: false,
-    };
+      store.setGenerationStatus("generating-tracks");
+      const musicResult = await generateMusic({
+        lyrics: lyricsResult.options.map((o) => o.lyrics),
+        tags: lyricsResult.options.map((o) => o.tags),
+        titles: lyricsResult.options.map((o) => o.title),
+        vibes: lyricsResult.options.map((o) => o.vibe),
+        recipientName: nameInput,
+        occasion: input.occasion,
+        relationship: input.relationship,
+        message: input.message,
+        mood: selectedMood,
+        genre: input.genre,
+        language: input.language,
+        voice: input.voice,
+      });
 
-    store.setCurrentGeneration(gen);
-
-    // Progressive track completion: 3s, 6s, 9s
-    const t1 = setTimeout(() => {
-      const updated = { ...gen, tracks: [{ ...baseTracks[0], status: "completed" as const, audioUrl: mockAudioUrls[0], duration: 60 }, baseTracks[1], baseTracks[2]] };
-      store.setCurrentGeneration(updated);
-      store.setGenerationStatus("partial");
-    }, 3000);
-
-    const t2 = setTimeout(() => {
-      const updated = { ...gen, tracks: [{ ...baseTracks[0], status: "completed" as const, audioUrl: mockAudioUrls[0], duration: 60 }, { ...baseTracks[1], status: "completed" as const, audioUrl: mockAudioUrls[1], duration: 60 }, baseTracks[2]] };
-      store.setCurrentGeneration(updated);
-    }, 6000);
-
-    const t3 = setTimeout(() => {
-      const finalGen: Generation = {
-        ...gen,
-        status: "completed",
-        posterUrl: "/mock-poster.jpg",
-        tracks: [
-          { id: baseTracks[0].id, status: "completed", audioUrl: mockAudioUrls[0], duration: 60 },
-          { id: baseTracks[1].id, status: "completed", audioUrl: mockAudioUrls[1], duration: 60 },
-          { id: baseTracks[2].id, status: "completed", audioUrl: mockAudioUrls[2], duration: 60 },
-        ],
+      const gen: Generation = {
+        id: musicResult.id,
+        input,
+        status: "generating-tracks",
+        tracks: musicResult.tracks.map((t) => ({ id: t.id, status: t.status as "pending" | "processing" | "completed" | "failed" })),
+        lyrics: lyricsResult.options.map((o) => `${o.title}\n\n${o.lyrics}`).join("\n\n---\n\n"),
+        createdAt: new Date().toISOString(),
+        isPaid: false,
+        isShared: false,
       };
-      store.setCurrentGeneration(finalGen);
-      store.setGenerationStatus("completed");
-      store.addGeneration(finalGen);
-      setIsGenerating(false);
-    }, 9000);
 
-    timersRef.current = [t1, t2, t3];
+      store.setCurrentGeneration(gen);
+
+      stopRef.current = startPolling(musicResult.id, (data) => {
+        const done = data.status === "completed";
+        const updated = {
+          ...gen,
+          status: done ? ("completed" as const) : ("generating-tracks" as const),
+          posterUrl: data.posterUrl || undefined,
+          tracks: data.tracks.map((t) => ({ id: t.id, status: t.status, audioUrl: t.audioUrl || undefined })),
+        };
+        store.setCurrentGeneration(updated);
+        if (done) {
+          store.setGenerationStatus("completed");
+          store.addGeneration({ ...updated, status: "completed" });
+          setIsGenerating(false);
+        }
+      }, () => {
+        store.setGenerationStatus("failed");
+        setIsGenerating(false);
+        if (!isFirstTime) store.addCoins(cost);
+      }, 5000);
+    } catch {
+      setIsGenerating(false);
+      store.setGenerationStatus("failed");
+      if (!isFirstTime) store.addCoins(cost);
+    }
   }, [nameInput, selectedMood, isFirstTime, cost, dedication, store]);
 
   const playTrack = (trackId: string, audioUrl: string, title: string, genre: string, mood: string, gradient: string) => {

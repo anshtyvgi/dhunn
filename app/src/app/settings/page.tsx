@@ -1,12 +1,15 @@
 "use client";
 
 import { useStore } from "@/stores/useStore";
+import { useClerk, useUser } from "@clerk/nextjs";
 import { User, Bell, Lock, Palette, Globe, LogOut, ChevronRight, Moon, Sun } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
 export default function SettingsPage() {
   const { coins } = useStore();
+  const { signOut } = useClerk();
+  const { user } = useUser();
   const [notifications, setNotifications] = useState(true);
   const [emailUpdates, setEmailUpdates] = useState(false);
   const [publicProfile, setPublicProfile] = useState(true);
@@ -54,7 +57,7 @@ export default function SettingsPage() {
             <User className="w-4 h-4 text-[#999]" />
             <div>
               <p className="text-sm text-[#111]">Email</p>
-              <p className="text-xs text-[#999]">you@example.com</p>
+              <p className="text-xs text-[#999]">{user?.primaryEmailAddress?.emailAddress ?? "—"}</p>
             </div>
           </div>
           <button className="text-xs text-[#7B61FF] font-semibold cursor-pointer hover:underline">Change</button>
@@ -143,7 +146,9 @@ export default function SettingsPage() {
 
       {/* Danger zone */}
       <div className="bg-white rounded-2xl border border-[#EAEAEA] divide-y divide-[#F5F5F5]">
-        <button className="w-full px-5 py-3 flex items-center gap-3 text-left cursor-pointer hover:bg-[#FAFAFA] transition-colors">
+        <button
+          onClick={() => signOut({ redirectUrl: "/" })}
+          className="w-full px-5 py-3 flex items-center gap-3 text-left cursor-pointer hover:bg-[#FAFAFA] transition-colors">
           <LogOut className="w-4 h-4 text-red-500" />
           <span className="text-sm text-red-500 font-medium">Sign out</span>
         </button>
