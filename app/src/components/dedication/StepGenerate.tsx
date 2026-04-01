@@ -63,8 +63,12 @@ export function StepGenerate() {
         vibes: lyricsOptions.map((o) => o.vibe),
         recipientName: dedication.recipientName,
         occasion: dedication.occasion,
+        relationship: dedication.relationship,
+        message: dedication.message,
         mood: dedication.mood,
         genre: dedication.genre,
+        language: dedication.language,
+        voice: dedication.voice,
       });
 
       const generation = {

@@ -80,8 +80,12 @@ export default function StudioPage() {
         vibes: result.options.map((o) => o.vibe),
         recipientName: "Studio Track",
         occasion: "custom",
+        relationship: "custom",
+        message: prompt,
         mood,
         genre,
+        language,
+        voice,
       });
 
       const gen = {

@@ -57,8 +57,12 @@ export async function generateMusic(params: {
   vibes: string[];
   recipientName: string;
   occasion: string;
+  relationship: string;
+  message: string;
   mood: string;
   genre: string;
+  language: string;
+  voice: string;
 }): Promise<GenerateMusicResponse> {
   const response = await fetch("/api/generate", {
     method: "POST",

@@ -1,161 +1,71 @@
+import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
-const ACE_API_KEY = process.env.ACE_API_KEY!;
-const DEV_MODE = process.env.DEV_MODE === "true";
-const ACE_STATUS_URL = "https://api.wavespeed.ai/api/v3/predictions";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api";
+
+function mapSessionStatus(status: string) {
+  if (status === "FAILED") return "failed";
+  if (status === "COMPLETED") return "completed";
+  return "processing";
+}
+
+function mapTrackStatus(status: string) {
+  if (status === "READY" || status === "PUBLISHED") return "completed";
+  if (status === "FAILED") return "failed";
+  return "processing";
+}
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const generationId = searchParams.get("id");
-
+  const generationId = request.nextUrl.searchParams.get("id");
   if (!generationId) {
     return NextResponse.json({ error: "Missing generation ID" }, { status: 400 });
   }
 
+  const { userId, getToken } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
-    const state = global.generationStore?.get(generationId);
+    const token = await getToken();
+    const response = await fetch(`${API_BASE_URL}/generate/session/${generationId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      cache: "no-store",
+    });
 
-    if (!state) {
-      return NextResponse.json({ error: "Generation not found" }, { status: 404 });
+    const data = await response.json();
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: data.message ?? data.error ?? "Status check failed" },
+        { status: response.status },
+      );
     }
-
-    // If already completed or failed, return cached
-    if (state.status === "completed" || state.status === "failed") {
-      return NextResponse.json({
-        id: state.id,
-        status: state.status,
-        posterUrl: state.posterUrl,
-        tracks: state.tracks.map((t) => ({
-          id: t.id,
-          status: t.status,
-          audioUrl: t.audioUrl,
-        })),
-        lyrics: state.tracks.map((t) => t.lyrics).filter(Boolean).join("\n\n---\n\n"),
-      });
-    }
-
-    // Dev mode: just return current state (timeouts in generate handle updates)
-    if (DEV_MODE) {
-      const allCompleted = state.tracks.every((t) => t.status === "completed");
-      if (allCompleted) state.status = "completed";
-      global.generationStore.set(generationId, state);
-
-      return NextResponse.json({
-        id: state.id,
-        status: state.status,
-        posterUrl: state.posterUrl,
-        tracks: state.tracks.map((t) => ({
-          id: t.id,
-          status: t.status,
-          audioUrl: t.audioUrl,
-        })),
-        lyrics: state.tracks.map((t) => t.lyrics).filter(Boolean).join("\n\n---\n\n"),
-      });
-    }
-
-    // Poll ACE for each track still processing
-    const updatedTracks = await Promise.all(
-      state.tracks.map(async (track) => {
-        if (track.status === "completed" || track.status === "failed" || !track.aceTaskId) {
-          return track;
-        }
-
-        try {
-          // Step 1: Check status
-          const statusRes = await fetch(`${ACE_STATUS_URL}/${track.aceTaskId}`, {
-            headers: { Authorization: `Bearer ${ACE_API_KEY}` },
-          });
-
-          if (!statusRes.ok) {
-            console.error(`ACE status failed for ${track.aceTaskId}: ${statusRes.status}`);
-            return track;
-          }
-
-          const statusData = await statusRes.json();
-          console.log(`ACE [${track.id}] status: ${statusData.status}`);
-
-          if (statusData.status === "completed") {
-            // Step 2: Fetch result from /result endpoint
-            const resultRes = await fetch(`${ACE_STATUS_URL}/${track.aceTaskId}/result`, {
-              headers: { Authorization: `Bearer ${ACE_API_KEY}` },
-            });
-
-            if (!resultRes.ok) {
-              const errText = await resultRes.text();
-              console.error(`ACE result failed for ${track.aceTaskId}: ${resultRes.status}`, errText);
-              // Still mark as completed even if result fetch fails
-              return { ...track, status: "completed" as const };
-            }
-
-            const resultData = await resultRes.json();
-            console.log(`ACE [${track.id}] result:`, JSON.stringify(resultData).slice(0, 500));
-
-            // Per docs: webhook format has "outputs": ["<output_url>"]
-            // The /result endpoint likely returns similar
-            let audioUrl: string | null = null;
-
-            if (resultData.outputs && Array.isArray(resultData.outputs) && resultData.outputs.length > 0) {
-              audioUrl = resultData.outputs[0];
-            } else if (resultData.output && typeof resultData.output === "string") {
-              audioUrl = resultData.output;
-            } else if (resultData.output?.url) {
-              audioUrl = resultData.output.url;
-            } else if (resultData.output?.audio_url) {
-              audioUrl = resultData.output.audio_url;
-            } else if (resultData.url) {
-              audioUrl = resultData.url;
-            } else if (resultData.audio_url) {
-              audioUrl = resultData.audio_url;
-            }
-
-            console.log(`Track ${track.id} completed. Audio: ${audioUrl}`);
-
-            return {
-              ...track,
-              status: "completed" as const,
-              audioUrl,
-            };
-          } else if (statusData.status === "failed") {
-            console.error(`Track ${track.id} failed:`, statusData.error || "unknown");
-            return { ...track, status: "failed" as const };
-          }
-
-          // pending / processing
-          return { ...track, status: "processing" as const };
-        } catch (err) {
-          console.error(`Error polling ACE for ${track.aceTaskId}:`, err);
-          return track;
-        }
-      })
-    );
-
-    state.tracks = updatedTracks;
-
-    const allCompleted = updatedTracks.every((t) => t.status === "completed");
-    const anyFailed = updatedTracks.some((t) => t.status === "failed");
-    const allDone = updatedTracks.every((t) => t.status === "completed" || t.status === "failed");
-
-    if (allCompleted) {
-      state.status = "completed";
-    } else if (allDone && anyFailed) {
-      state.status = "failed";
-    }
-
-    global.generationStore.set(generationId, state);
 
     return NextResponse.json({
-      id: state.id,
-      status: state.status,
-      posterUrl: state.posterUrl,
-      tracks: state.tracks.map((t) => ({
-        id: t.id,
-        status: t.status,
-        audioUrl: t.audioUrl,
-      })),
-      lyrics: state.tracks.map((t) => t.lyrics).filter(Boolean).join("\n\n---\n\n"),
+      id: data.id,
+      status: mapSessionStatus(data.status),
+      posterUrl: data.variants.find((variant: { coverImageUrl?: string | null }) => variant.coverImageUrl)?.coverImageUrl ?? null,
+      tracks: data.variants.map(
+        (variant: {
+          id: string;
+          audioStatus: string;
+          audioUrl?: string | null;
+          lyrics: string;
+          title: string;
+          coverImageUrl?: string | null;
+        }) => ({
+          id: variant.id,
+          status: mapTrackStatus(variant.audioStatus),
+          audioUrl: variant.audioUrl ?? null,
+          lyrics: variant.lyrics,
+          title: variant.title,
+          posterUrl: variant.coverImageUrl ?? null,
+        }),
+      ),
+      lyrics: data.variants.map((variant: { lyrics: string }) => variant.lyrics).join("\n\n---\n\n"),
     });
   } catch (error) {
-    console.error("Status check error:", error);
+    console.error("Status proxy error:", error);
     return NextResponse.json({ error: "Failed to check status" }, { status: 500 });
   }
 }
