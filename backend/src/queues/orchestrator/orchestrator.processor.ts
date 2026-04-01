@@ -52,9 +52,9 @@ export class OrchestratorProcessor extends WorkerHost {
             data: { songId: song.id },
             opts: {
               jobId: `audio_${song.id}`,
-              delay: i * 10000,
-              attempts: 3,
-              backoff: { type: 'exponential', delay: 10000 },
+              delay: i * 30000, // 30s stagger to avoid WAN 429
+              attempts: 5,
+              backoff: { type: 'exponential', delay: 30000 },
               removeOnComplete: 1000,
               removeOnFail: 1000,
             },
@@ -106,13 +106,14 @@ export class OrchestratorProcessor extends WorkerHost {
 
       await Promise.all([
         this.audioQueue.addBulk(
-          songs.map((song) => ({
+          songs.map((song, i) => ({
             name: JOB_GENERATE_AUDIO,
             data: { songId: song.id },
             opts: {
               jobId: `audio_${song.id}`,
-              attempts: 3,
-              backoff: { type: 'exponential', delay: 5000 },
+              delay: i * 30000, // 30s stagger to avoid WAN 429
+              attempts: 5,
+              backoff: { type: 'exponential', delay: 30000 },
               removeOnComplete: 1000,
               removeOnFail: 1000,
             },

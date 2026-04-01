@@ -25,14 +25,16 @@ export class AudioProcessor extends WorkerHost {
     }
 
     const song = await this.generateService.getSongWithSession(job.data.songId);
-    const sid = song.sessionId; // correlation ID
+    const sid = song.sessionId;
 
     if (song.audioUrl) {
       this.logger.log(`[session:${sid}] Song ${song.id} already has audio, skipping`);
       return;
     }
 
-    this.logger.log(`[session:${sid}] Starting audio generation for song ${song.id}`);
+    this.logger.log(
+      `[session:${sid}] Starting audio generation for song ${song.id} (attempt ${job.attemptsMade + 1}/${(job.opts?.attempts ?? 3) + 1})`,
+    );
     await this.generateService.markAudioProcessing(song.id);
 
     try {
@@ -58,13 +60,22 @@ export class AudioProcessor extends WorkerHost {
         storageKey: uploaded.key,
       });
     } catch (error) {
-      this.logger.error(
-        `[session:${sid}] Audio generation failed for song ${song.id}: ${(error as Error).message}`,
-      );
-      await this.generateService.markAudioFailed(
-        song.id,
-        (error as Error).message,
-      );
+      const message = (error as Error).message ?? String(error);
+      const isLastAttempt = job.attemptsMade + 1 >= (job.opts?.attempts ?? 3);
+      const isRetryable = message.includes('429') || message.includes('timeout') || message.includes('ECONNREFUSED');
+
+      if (isRetryable && !isLastAttempt) {
+        // Don't mark as FAILED — BullMQ will retry this job
+        this.logger.warn(
+          `[session:${sid}] Retryable error for song ${song.id} (attempt ${job.attemptsMade + 1}): ${message}`,
+        );
+      } else {
+        // Final attempt or non-retryable error — mark as permanently failed
+        this.logger.error(
+          `[session:${sid}] Audio generation failed for song ${song.id}: ${message}`,
+        );
+        await this.generateService.markAudioFailed(song.id, message);
+      }
       throw error;
     }
   }

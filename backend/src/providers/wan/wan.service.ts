@@ -95,6 +95,33 @@ export class WanService {
       clearTimeout(timeout);
     }
 
+    // Retry on 429 (rate limit) — wait and try once more
+    if (response.status === 429) {
+      const retryAfter = parseInt(response.headers.get('retry-after') ?? '30', 10);
+      const waitMs = Math.min(retryAfter * 1000, 60000);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+
+      const retryController = new AbortController();
+      const retryTimeout = setTimeout(() => retryController.abort(), 60000);
+      try {
+        response = await fetch(`${this.baseUrl}/${this.modelPath}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            duration: params.durationSeconds ?? 60,
+            lyrics: params.lyrics,
+            tags: params.tags.join(', '),
+          }),
+          signal: retryController.signal,
+        });
+      } finally {
+        clearTimeout(retryTimeout);
+      }
+    }
+
     if (!response.ok) {
       throw new InternalServerErrorException(
         `WAN submit failed: ${response.status} ${await response.text()}`,
