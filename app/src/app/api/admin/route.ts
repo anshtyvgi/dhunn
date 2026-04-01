@@ -6,7 +6,7 @@ const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS ?? "").split(",").filter(Bool
 
 async function assertAdmin() {
   const { userId } = await auth();
-  if (!userId || (ADMIN_USER_IDS.length > 0 && !ADMIN_USER_IDS.includes(userId))) {
+  if (!userId || ADMIN_USER_IDS.length === 0 || !ADMIN_USER_IDS.includes(userId)) {
     return false;
   }
   return true;
@@ -78,6 +78,9 @@ export async function POST(request: NextRequest) {
     case "add_coins": {
       const user = store.users.find((u) => u.id === body.userId);
       if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+      if (!body.amount || typeof body.amount !== "number" || body.amount <= 0 || !Number.isInteger(body.amount)) {
+        return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
+      }
       user.coinsBalance += body.amount;
       store.transactions.unshift({
         id: `t${Date.now()}`, userId: user.id, userName: user.name,

@@ -70,6 +70,8 @@ model User {
   imageUrl           String?
   coins              Int                 @default(0)
   onboardingRewarded Boolean             @default(false)
+  adUnlocksToday     Int                 @default(0)
+  adUnlockDate       String?
   sessions           GenerationSession[]
   transactions       Transaction[]
   shares             Share[]

@@ -1,6 +1,8 @@
+import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
-// Package definitions (mirrored from client-side types)
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api";
+
 const COIN_PACKAGES = [
   { id: "starter", name: "Starter", coins: 50, priceINR: 99, priceUSD: 1.49 },
   { id: "popular", name: "Popular", coins: 150, priceINR: 249, priceUSD: 3.49 },
@@ -8,14 +10,18 @@ const COIN_PACKAGES = [
   { id: "pro", name: "Pro", coins: 1500, priceINR: 1799, priceUSD: 21.99 },
 ];
 
-// POST /api/coins
-// Creates a coin purchase order (mock Razorpay flow)
+// POST /api/coins — creates a coin purchase order
 export async function POST(request: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { packageId } = body;
 
-    if (!packageId) {
+    if (!packageId || typeof packageId !== "string") {
       return NextResponse.json({ error: "Missing package ID" }, { status: 400 });
     }
 
@@ -24,12 +30,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid package" }, { status: 400 });
     }
 
-    // Mock Razorpay order creation
-    // In production: const razorpay = new Razorpay({ key_id, key_secret });
-    // const order = await razorpay.orders.create({ amount: pkg.priceINR * 100, currency: "INR", receipt: `dhun_${packageId}` });
+    // TODO: Replace with real Razorpay order creation
+    // const razorpay = new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID!, key_secret: process.env.RAZORPAY_KEY_SECRET! });
+    // const order = await razorpay.orders.create({ amount: pkg.priceINR * 100, currency: "INR", receipt: `dhun_${packageId}_${userId}` });
     const order = {
       id: `order_${crypto.randomUUID()}`,
-      amount: pkg.priceINR * 100, // paise
+      amount: pkg.priceINR * 100,
       currency: "INR",
       packageId: pkg.id,
       coins: pkg.coins,
@@ -43,14 +49,18 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT /api/coins
-// Verifies payment and credits coins
+// PUT /api/coins — verifies payment and credits coins via backend
 export async function PUT(request: NextRequest) {
+  const { userId, getToken } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { orderId, paymentId, signature, packageId } = body;
 
-    if (!orderId || !paymentId) {
+    if (!orderId || !paymentId || !signature) {
       return NextResponse.json({ error: "Missing payment details" }, { status: 400 });
     }
 
@@ -59,14 +69,44 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Invalid package" }, { status: 400 });
     }
 
-    // Mock verification — in production:
+    // TODO: In production, verify Razorpay signature server-side:
     // const expectedSignature = crypto.createHmac("sha256", RAZORPAY_SECRET).update(`${orderId}|${paymentId}`).digest("hex");
-    // if (expectedSignature !== signature) return error;
-    // Then credit coins in DB: UPDATE users SET coins = coins + pkg.coins WHERE id = userId
+    // if (expectedSignature !== signature) return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
 
+    // Credit coins via backend webhook/API for proper persistence
+    const token = await getToken();
+    const backendRes = await fetch(`${API_BASE_URL}/payments/webhook`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // In production, use HMAC signature header instead
+        "x-payment-signature": signature,
+      },
+      body: JSON.stringify({
+        type: "payment.captured",
+        data: {
+          paymentId,
+          clerkUserId: userId,
+          coins: pkg.coins,
+          amount: pkg.priceINR,
+          currency: "INR",
+        },
+      }),
+    });
+
+    if (!backendRes.ok) {
+      const err = await backendRes.json().catch(() => ({ error: "Backend error" }));
+      return NextResponse.json(
+        { error: err.message ?? err.error ?? "Payment verification failed" },
+        { status: backendRes.status },
+      );
+    }
+
+    const result = await backendRes.json();
     return NextResponse.json({
       success: true,
       coinsAdded: pkg.coins,
+      newBalance: result.coins,
       packageName: pkg.name,
       message: `${pkg.coins} tokens credited successfully!`,
     });

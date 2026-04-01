@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
@@ -16,9 +17,14 @@ async function bootstrap() {
 
   const frontendUrl = configService.get<string>('frontendUrl');
   app.enableCors({
-    origin: frontendUrl ? [frontendUrl] : true,
+    origin: frontendUrl
+      ? [frontendUrl]
+      : process.env.NODE_ENV === 'production'
+        ? false
+        : ['http://localhost:3000'],
     credentials: true,
   });
+  app.use(helmet());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

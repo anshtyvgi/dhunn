@@ -47,11 +47,24 @@ export class GeminiService {
       },
     };
 
-    const response = await fetch(this.buildTextEndpoint(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    let response: Response;
+    try {
+      response = await fetch(this.buildTextEndpoint(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') {
+        throw new InternalServerErrorException('Gemini lyric generation timed out');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       throw new InternalServerErrorException(
@@ -139,10 +152,15 @@ export class GeminiService {
     vibe: string;
     coverPrompt: string;
   }) {
-    const response = await fetch(this.buildImageEndpoint(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const imgController = new AbortController();
+    const imgTimeout = setTimeout(() => imgController.abort(), 90000);
+    let response: Response;
+    try {
+      response = await fetch(this.buildImageEndpoint(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: imgController.signal,
+        body: JSON.stringify({
         contents: [
           {
             parts: [
@@ -163,6 +181,15 @@ export class GeminiService {
         },
       }),
     });
+
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') {
+        throw new InternalServerErrorException('Gemini cover generation timed out');
+      }
+      throw err;
+    } finally {
+      clearTimeout(imgTimeout);
+    }
 
     if (!response.ok) {
       throw new InternalServerErrorException(

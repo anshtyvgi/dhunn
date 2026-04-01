@@ -43,26 +43,44 @@ const actionConfig: Record<UnlockAction, { title: string; description: string; i
 };
 
 export function UnlockModal({ action, trackTitle, onUnlock, onClose }: UnlockModalProps) {
-  const { coins, deductCoins, useAdUnlock, getAdUnlocksRemaining } = useStore();
+  const { coins, deductCoins } = useStore();
   const [showAd, setShowAd] = useState(false);
   const [adCompleted, setAdCompleted] = useState(false);
+  const [adUnlocksLeft, setAdUnlocksLeft] = useState<number | null>(null);
+  const [adLoading, setAdLoading] = useState(false);
 
   const config = actionConfig[action];
-  const adUnlocksLeft = getAdUnlocksRemaining();
   const canAfford = coins >= config.cost;
-  const canWatchAd = adUnlocksLeft > 0 && (action === "unlock"); // Ads only for single track unlock
+  const canWatchAd = (adUnlocksLeft === null || adUnlocksLeft > 0) && (action === "unlock");
+
+  // Fetch remaining ad unlocks from backend on mount
+  useState(() => {
+    fetch("/api/users/me")
+      .then((res) => res.json())
+      .then((data) => setAdUnlocksLeft(data.adUnlocksRemaining ?? 0))
+      .catch(() => setAdUnlocksLeft(0));
+  });
 
   const handleCoinUnlock = () => {
     const success = deductCoins(config.cost);
     if (success) onUnlock();
   };
 
-  const handleAdComplete = () => {
-    const success = useAdUnlock();
-    if (success) {
-      setAdCompleted(true);
-      setShowAd(false);
-      onUnlock();
+  const handleAdComplete = async () => {
+    setAdLoading(true);
+    try {
+      const res = await fetch("/api/ad-unlock", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setAdCompleted(true);
+        setShowAd(false);
+        setAdUnlocksLeft(data.remaining);
+        onUnlock();
+      }
+    } catch {
+      console.error("Ad unlock failed");
+    } finally {
+      setAdLoading(false);
     }
   };
 
@@ -108,7 +126,7 @@ export function UnlockModal({ action, trackTitle, onUnlock, onClose }: UnlockMod
               <div className="flex-1 text-left">
                 <p className="text-sm font-bold text-[#111]">Watch Ad — Free</p>
                 <p className="text-[10px] text-[#999]">
-                  15 sec video · {adUnlocksLeft}/{MAX_AD_UNLOCKS_PER_DAY} remaining today
+                  15 sec video · {adUnlocksLeft ?? "…"}/{MAX_AD_UNLOCKS_PER_DAY} remaining today
                 </p>
               </div>
               <div className="px-2.5 py-1 rounded-full bg-[#111] text-white text-[10px] font-bold shrink-0">

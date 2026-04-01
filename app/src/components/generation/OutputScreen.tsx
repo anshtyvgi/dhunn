@@ -26,7 +26,7 @@ const trackGradients = [
 ];
 
 export function OutputScreen() {
-  const { generationStatus, currentGeneration, coins, deductCoins, addGeneration, generations, setGenerationStatus, setCurrentGeneration, resetDedication } = useStore();
+  const { generationStatus, currentGeneration, coins, deductCoins, addCoins, addGeneration, generations, setGenerationStatus, setCurrentGeneration, resetDedication } = useStore();
   const router = useRouter();
   const [likedTracks, setLikedTracks] = useState<Set<string>>(new Set());
   const [dislikedTracks, setDislikedTracks] = useState<Set<string>>(new Set());
@@ -107,6 +107,14 @@ export function OutputScreen() {
           lyrics: currentGeneration.lyrics || null,
         }),
       });
+
+      if (!res.ok) {
+        addCoins(cost); // Refund on failure
+        const err = await res.json().catch(() => ({ error: "Share failed" }));
+        console.error("Share API error:", err);
+        return;
+      }
+
       const data = await res.json();
 
       setCurrentGeneration({ ...currentGeneration, isPaid: true, isShared: true });
@@ -123,6 +131,7 @@ export function OutputScreen() {
         alert("Share link copied to clipboard!");
       }
     } catch (err) {
+      addCoins(cost); // Refund on network failure
       console.error("Share error:", err);
     } finally {
       setShareLoading(false);
@@ -144,19 +153,27 @@ export function OutputScreen() {
 
       setCurrentGeneration({ ...currentGeneration, isPaid: true });
 
-      // Download each completed track
+      // Download each completed track via authenticated presigned URL
       for (const track of currentGeneration.tracks) {
-        if (track.audioUrl && track.status === "completed") {
-          const link = document.createElement("a");
-          link.href = track.audioUrl;
-          link.download = `dhun-${currentGeneration.input.recipientName}-track-${track.id}.mp3`;
-          link.target = "_blank";
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+        if (track.status === "completed") {
+          try {
+            const res = await fetch(`/api/download?songId=${track.id}`);
+            if (!res.ok) continue;
+            const { url } = await res.json();
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `dhun-${currentGeneration.input.recipientName}-track-${track.id}.mp3`;
+            link.target = "_blank";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          } catch {
+            console.error(`Failed to download track ${track.id}`);
+          }
         }
       }
     } catch (err) {
+      addCoins(cost); // Refund on download failure
       console.error("Download error:", err);
     } finally {
       setDownloadLoading(false);

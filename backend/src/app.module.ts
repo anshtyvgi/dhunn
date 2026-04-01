@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import appConfig from './common/config/app.config';
 import { validate } from './common/config/validation';
 import { AuthModule } from './auth/auth.module';
@@ -37,8 +38,16 @@ import { CoverProcessor } from './workers/cover/cover.processor';
         defaultJobOptions: {
           removeOnComplete: 1000,
           removeOnFail: 1000,
+          timeout: 600000, // 10 minutes max per job
         },
       }),
+    }),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        { name: 'short', ttl: 1000, limit: 5 },
+        { name: 'medium', ttl: 10000, limit: 30 },
+        { name: 'long', ttl: 60000, limit: 100 },
+      ],
     }),
     AuthModule,
     PrismaModule,
@@ -59,6 +68,10 @@ import { CoverProcessor } from './workers/cover/cover.processor';
     {
       provide: APP_GUARD,
       useClass: ClerkAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
     },
   ],
 })

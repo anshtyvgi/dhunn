@@ -1,6 +1,9 @@
+import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
-// In-memory store for shared dedications (mirrors generationStore pattern)
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api";
+
+// In-memory store as fallback (will be replaced by backend persistence)
 declare global {
   var sharedStore: Map<string, SharedDedication>;
 }
@@ -23,28 +26,38 @@ interface SharedDedication {
   createdAt: string;
 }
 
-// POST /api/share
-// Creates a shareable link for a dedication
+// POST /api/share — creates a shareable link for a dedication
 export async function POST(request: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { generationId, recipientName, occasion, mood, genre, message, creatorName, posterUrl, audioUrl, lyrics } = body;
 
-    if (!generationId) {
-      return NextResponse.json({ error: "Missing generation ID" }, { status: 400 });
+    if (!generationId || typeof generationId !== "string") {
+      return NextResponse.json({ error: "Missing or invalid generation ID" }, { status: 400 });
+    }
+
+    // Prevent overwriting existing shares by other users
+    const existing = global.sharedStore.get(generationId);
+    if (existing && existing.creatorName !== (creatorName || "A friend")) {
+      return NextResponse.json({ error: "Not authorized to modify this share" }, { status: 403 });
     }
 
     const shared: SharedDedication = {
       id: generationId,
-      recipientName: recipientName || "Someone special",
-      occasion: occasion || "love",
-      mood: mood || "romantic",
-      genre: genre || "pop",
-      message: message || "",
-      creatorName: creatorName || "A friend",
-      posterUrl: posterUrl || null,
-      audioUrl: audioUrl || null,
-      lyrics: lyrics || null,
+      recipientName: String(recipientName || "Someone special").slice(0, 200),
+      occasion: String(occasion || "love").slice(0, 100),
+      mood: String(mood || "romantic").slice(0, 100),
+      genre: String(genre || "pop").slice(0, 100),
+      message: String(message || "").slice(0, 2000),
+      creatorName: String(creatorName || "A friend").slice(0, 200),
+      posterUrl: posterUrl ? String(posterUrl).slice(0, 2000) : null,
+      audioUrl: audioUrl ? String(audioUrl).slice(0, 2000) : null,
+      lyrics: lyrics ? String(lyrics).slice(0, 5000) : null,
       isPaid: true,
       createdAt: new Date().toISOString(),
     };
@@ -64,8 +77,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET /api/share?id={generationId}
-// Fetches public dedication data for the share page
+// GET /api/share?id={generationId} — fetches public dedication data
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
@@ -74,7 +86,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing ID" }, { status: 400 });
   }
 
-  // Check shared store first
   const shared = global.sharedStore?.get(id);
   if (shared) {
     return NextResponse.json(shared);

@@ -69,18 +69,31 @@ export class WanService {
     tags: string[];
     durationSeconds?: number;
   }): Promise<WanSubmitResponse> {
-    const response = await fetch(`${this.baseUrl}/${this.modelPath}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        duration: params.durationSeconds ?? 60,
-        lyrics: params.lyrics,
-        tags: params.tags.join(', '),
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/${this.modelPath}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          duration: params.durationSeconds ?? 60,
+          lyrics: params.lyrics,
+          tags: params.tags.join(', '),
+        }),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') {
+        throw new InternalServerErrorException('WAN submit timed out');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       throw new InternalServerErrorException(

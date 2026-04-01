@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Upload } from '@aws-sdk/lib-storage';
 
 @Injectable()
@@ -52,5 +53,21 @@ export class R2Service {
       key: params.key,
       url: `${this.publicBaseUrl}/${params.key}`,
     };
+  }
+
+  /**
+   * Generate a short-lived presigned URL for downloading a stored object.
+   * @param key - The storage key of the object
+   * @param expiresInSeconds - URL validity duration (default 300s / 5 min)
+   */
+  async getPresignedUrl(key: string, expiresInSeconds = 300): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    });
+
+    return getSignedUrl(this.client, command, {
+      expiresIn: expiresInSeconds,
+    });
   }
 }

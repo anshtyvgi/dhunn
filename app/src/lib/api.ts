@@ -87,6 +87,8 @@ export async function pollStatus(generationId: string): Promise<StatusResponse> 
   return response.json();
 }
 
+const MAX_POLL_DURATION_MS = 480000; // 8 minutes max polling
+
 export function startPolling(
   generationId: string,
   onUpdate: (data: StatusResponse) => void,
@@ -94,19 +96,31 @@ export function startPolling(
   intervalMs = 5000
 ): () => void {
   let stopped = false;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const startedAt = Date.now();
 
   const poll = async () => {
     if (stopped) return;
+
+    if (Date.now() - startedAt > MAX_POLL_DURATION_MS) {
+      if (!stopped) onError(new Error("Generation timed out — please check your library"));
+      return;
+    }
+
     try {
       const data = await pollStatus(generationId);
+      if (stopped) return;
       onUpdate(data);
       if (data.status === "completed" || data.status === "failed") return;
-      setTimeout(poll, intervalMs);
+      timeoutId = setTimeout(poll, intervalMs);
     } catch (err) {
       if (!stopped) onError(err instanceof Error ? err : new Error("Polling failed"));
     }
   };
 
   poll();
-  return () => { stopped = true; };
+  return () => {
+    stopped = true;
+    if (timeoutId !== null) clearTimeout(timeoutId);
+  };
 }

@@ -53,7 +53,7 @@ export class GenerateService {
     authUser: AuthenticatedUser,
   ) {
     const user = await this.usersService.getOrCreate(authUser);
-    const coinCost = this.configService.getOrThrow<{
+    const baseCost = this.configService.getOrThrow<{
       dedicateGenerationCost: number;
     }>('pricing').dedicateGenerationCost;
 
@@ -62,7 +62,14 @@ export class GenerateService {
         where: { id: user.id },
       });
 
-      if (currentUser.coins < coinCost) {
+      // First generation is free — enforced server-side
+      const existingSessions = await tx.generationSession.count({
+        where: { userId: user.id },
+      });
+      const isFirstGeneration = existingSessions === 0;
+      const coinCost = isFirstGeneration ? 0 : baseCost;
+
+      if (coinCost > 0 && currentUser.coins < coinCost) {
         throw new HttpException('Not enough coins', HttpStatus.PAYMENT_REQUIRED);
       }
 
@@ -78,29 +85,33 @@ export class GenerateService {
         },
       });
 
-      await tx.user.update({
-        where: { id: user.id },
-        data: {
-          coins: {
-            decrement: coinCost,
+      if (coinCost > 0) {
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            coins: {
+              decrement: coinCost,
+            },
           },
-        },
-      });
+        });
 
-      await tx.transaction.create({
-        data: {
-          userId: user.id,
-          sessionId: created.id,
-          amount: -coinCost,
-          type: TransactionType.DEBIT,
-          description: 'Dedicate generation charge',
-          metadata: JSON.parse(
-            JSON.stringify({
-              sessionType: SessionType.DEDICATE,
-            }),
-          ) as Prisma.InputJsonValue,
-        },
-      });
+        await tx.transaction.create({
+          data: {
+            userId: user.id,
+            sessionId: created.id,
+            amount: -coinCost,
+            type: TransactionType.DEBIT,
+            description: isFirstGeneration
+              ? 'Free first generation'
+              : 'Dedicate generation charge',
+            metadata: JSON.parse(
+              JSON.stringify({
+                sessionType: SessionType.DEDICATE,
+              }),
+            ) as Prisma.InputJsonValue,
+          },
+        });
+      }
 
       return created;
     });
@@ -369,60 +380,92 @@ export class GenerateService {
   }
 
   private async refreshSessionStatus(sessionId: string, failedReason?: string) {
-    const session = await this.prisma.generationSession.findUnique({
-      where: { id: sessionId },
-      include: { songs: true },
+    // Use a transaction for atomic read-compute-write to prevent race conditions
+    // between concurrent workers updating the same session
+    await this.prisma.$transaction(async (tx) => {
+      const session = await tx.generationSession.findUnique({
+        where: { id: sessionId },
+        include: { songs: true },
+      });
+
+      if (!session) {
+        return;
+      }
+
+      // Don't overwrite terminal states
+      if (
+        session.status === SessionStatus.COMPLETED ||
+        session.status === SessionStatus.FAILED
+      ) {
+        return;
+      }
+
+      const totalSongs = session.songs.length;
+      const readyAudio = session.songs.filter((song) =>
+        this.isReadySong(song.status),
+      ).length;
+      const failedAudio = session.songs.filter(
+        (song) => song.status === SongStatus.FAILED,
+      ).length;
+      const readyCovers = session.songs.filter(
+        (song) => song.coverStatus === AssetStatus.READY,
+      ).length;
+
+      let status: SessionStatus = SessionStatus.PROCESSING_ASSETS;
+      let completedAt: Date | null = null;
+      let failedReasonValue: string | undefined;
+
+      if (totalSongs > 0 && readyAudio === totalSongs) {
+        status = SessionStatus.COMPLETED;
+        completedAt = new Date();
+      } else if (
+        totalSongs > 0 &&
+        readyAudio > 0 &&
+        readyAudio + failedAudio === totalSongs
+      ) {
+        status = SessionStatus.COMPLETED;
+        completedAt = new Date();
+        failedReasonValue = failedReason;
+      } else if (totalSongs > 0 && readyAudio === 0 && failedAudio === totalSongs) {
+        status = SessionStatus.FAILED;
+        failedReasonValue = failedReason ?? 'All audio variants failed';
+      } else if (readyCovers > 0 || readyAudio > 0) {
+        status = SessionStatus.PARTIAL;
+      }
+
+      await tx.generationSession.update({
+        where: { id: sessionId },
+        data: {
+          status,
+          completedAt: completedAt ?? undefined,
+          failedReason: failedReasonValue,
+        },
+      });
+
+      if (status === SessionStatus.FAILED) {
+        // Inline refund within the same transaction to prevent double-refund race
+        if (!session.refundedAt) {
+          await tx.user.update({
+            where: { id: session.userId },
+            data: { coins: { increment: session.coinCost } },
+          });
+          await tx.transaction.create({
+            data: {
+              userId: session.userId,
+              sessionId: session.id,
+              amount: session.coinCost,
+              type: TransactionType.REFUND,
+              description: 'Automatic refund for failed generation',
+              externalRef: `refund:${session.id}`,
+            },
+          });
+          await tx.generationSession.update({
+            where: { id: sessionId },
+            data: { refundedAt: new Date() },
+          });
+        }
+      }
     });
-
-    if (!session) {
-      return;
-    }
-
-    const totalSongs = session.songs.length;
-    const readyAudio = session.songs.filter((song) =>
-      this.isReadySong(song.status),
-    ).length;
-    const failedAudio = session.songs.filter(
-      (song) => song.status === SongStatus.FAILED,
-    ).length;
-    const readyCovers = session.songs.filter(
-      (song) => song.coverStatus === AssetStatus.READY,
-    ).length;
-
-    let status: SessionStatus = SessionStatus.PROCESSING_ASSETS;
-    let completedAt: Date | null = null;
-    let failedReasonValue: string | undefined;
-
-    if (totalSongs > 0 && readyAudio === totalSongs) {
-      status = SessionStatus.COMPLETED;
-      completedAt = new Date();
-    } else if (
-      totalSongs > 0 &&
-      readyAudio > 0 &&
-      readyAudio + failedAudio === totalSongs
-    ) {
-      status = SessionStatus.COMPLETED;
-      completedAt = new Date();
-      failedReasonValue = failedReason;
-    } else if (totalSongs > 0 && readyAudio === 0 && failedAudio === totalSongs) {
-      status = SessionStatus.FAILED;
-      failedReasonValue = failedReason ?? 'All audio variants failed';
-    } else if (readyCovers > 0 || readyAudio > 0) {
-      status = SessionStatus.PARTIAL;
-    }
-
-    await this.prisma.generationSession.update({
-      where: { id: sessionId },
-      data: {
-        status,
-        completedAt: completedAt ?? undefined,
-        failedReason: failedReasonValue,
-      },
-    });
-
-    if (status === SessionStatus.FAILED) {
-      await this.refundSession(sessionId);
-    }
   }
 
   private isReadySong(status: SongStatus) {
