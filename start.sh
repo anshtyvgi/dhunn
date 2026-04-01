@@ -6,7 +6,7 @@ cd /app/backend
 npx prisma migrate deploy || echo "Migration warning (may be ok on first deploy)"
 
 # Start backend on internal port 4000
-PORT=4000 NODE_ENV=production node dist/src/main.js &
+PORT=4000 NODE_ENV=production node dist/main.js &
 BACKEND_PID=$!
 
 # Wait briefly for backend to start
