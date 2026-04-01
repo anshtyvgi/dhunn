@@ -1,17 +1,18 @@
 import {
   Injectable,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 interface WanSubmitResponse {
   id: string;
   status: string;
-  pollUrl?: string;
 }
 
 @Injectable()
 export class WanService {
+  private readonly logger = new Logger(WanService.name);
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly modelPath: string;
@@ -38,15 +39,19 @@ export class WanService {
     durationSeconds?: number;
   }) {
     const submit = await this.submitPrediction(params);
+    this.logger.log(`WAN task submitted: ${submit.id}`);
+
     const result = await this.pollResult(submit.id);
 
     const outputUrl = this.extractOutputUrl(result);
     if (!outputUrl) {
+      this.logger.error(`WAN completed but no output URL found in: ${JSON.stringify(result).slice(0, 500)}`);
       throw new InternalServerErrorException(
         'WAN completed without returning an audio asset',
       );
     }
 
+    this.logger.log(`Downloading audio from: ${outputUrl}`);
     const response = await fetch(outputUrl);
     if (!response.ok) {
       throw new InternalServerErrorException(
@@ -95,10 +100,11 @@ export class WanService {
       clearTimeout(timeout);
     }
 
-    // Retry on 429 (rate limit) — wait and try once more
+    // Retry on 429 (rate limit)
     if (response.status === 429) {
       const retryAfter = parseInt(response.headers.get('retry-after') ?? '30', 10);
       const waitMs = Math.min(retryAfter * 1000, 60000);
+      this.logger.warn(`WAN 429 rate limited, waiting ${waitMs}ms`);
       await new Promise((resolve) => setTimeout(resolve, waitMs));
 
       const retryController = new AbortController();
@@ -123,12 +129,16 @@ export class WanService {
     }
 
     if (!response.ok) {
+      const body = await response.text();
+      this.logger.error(`WAN submit failed: ${response.status} ${body}`);
       throw new InternalServerErrorException(
-        `WAN submit failed: ${response.status} ${await response.text()}`,
+        `WAN submit failed: ${response.status} ${body}`,
       );
     }
 
-    const data = await response.json() as Record<string, unknown>;
+    const data = (await response.json()) as Record<string, unknown>;
+    this.logger.log(`WAN submit response: ${JSON.stringify(data).slice(0, 300)}`);
+
     const id = (data.id ?? data.task_id ?? (data as any).data?.id) as string | undefined;
     if (!id) {
       throw new InternalServerErrorException(
@@ -136,50 +146,43 @@ export class WanService {
       );
     }
 
-    // Use the poll URL from the response if available
-    const pollUrl = (data as any).urls?.get as string | undefined;
-    return { id, status: String(data.status ?? 'created'), pollUrl };
+    return { id, status: String(data.status ?? 'created') };
   }
 
-  private async pollResult(taskId: string) {
+  private async pollResult(taskId: string): Promise<Record<string, unknown>> {
     const startedAt = Date.now();
 
     while (Date.now() - startedAt < this.timeoutMs) {
-      const statusResponse = await fetch(`${this.baseUrl}/predictions/${taskId}`, {
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
+      const statusResponse = await fetch(
+        `${this.baseUrl}/predictions/${taskId}/result`,
+        {
+          headers: { Authorization: `Bearer ${this.apiKey}` },
         },
-      });
+      );
 
       if (!statusResponse.ok) {
+        // Non-200 on poll is not fatal — might just not be ready yet
+        if (statusResponse.status === 404 || statusResponse.status === 202) {
+          await new Promise((resolve) => setTimeout(resolve, this.intervalMs));
+          continue;
+        }
         throw new InternalServerErrorException(
           `WAN poll failed: ${statusResponse.status} ${await statusResponse.text()}`,
         );
       }
 
-      const status = (await statusResponse.json()) as Record<string, unknown>;
-      if (status.status === 'completed') {
-        const resultResponse = await fetch(
-          `${this.baseUrl}/predictions/${taskId}/result`,
-          {
-            headers: {
-              Authorization: `Bearer ${this.apiKey}`,
-            },
-          },
-        );
+      const data = (await statusResponse.json()) as Record<string, unknown>;
+      this.logger.log(`WAN poll ${taskId}: status=${data.status}`);
 
-        if (!resultResponse.ok) {
-          throw new InternalServerErrorException(
-            `WAN result fetch failed: ${resultResponse.status} ${await resultResponse.text()}`,
-          );
-        }
-
-        return (await resultResponse.json()) as Record<string, unknown>;
+      if (data.status === 'completed') {
+        // The response itself contains outputs — use it directly
+        return data;
       }
 
-      if (status.status === 'failed' || status.status === 'canceled') {
+      if (data.status === 'failed' || data.status === 'canceled') {
+        const errMsg = (data.error as string) ?? `WAN prediction ${data.status}`;
         throw new InternalServerErrorException(
-          `WAN prediction failed for task ${taskId}`,
+          `WAN prediction failed for task ${taskId}: ${errMsg}`,
         );
       }
 
@@ -187,28 +190,32 @@ export class WanService {
     }
 
     throw new InternalServerErrorException(
-      `WAN prediction timed out for task ${taskId}`,
+      `WAN prediction timed out for task ${taskId} after ${this.timeoutMs}ms`,
     );
   }
 
-  private extractOutputUrl(result: Record<string, unknown>) {
+  private extractOutputUrl(result: Record<string, unknown>): string | null {
+    // outputs: ["https://...mp3"]
     if (Array.isArray(result.outputs) && typeof result.outputs[0] === 'string') {
       return result.outputs[0];
     }
 
+    // output: "https://..."
     if (typeof result.output === 'string') {
       return result.output;
     }
 
+    // output: { url: "https://..." }
     if (
       result.output &&
       typeof result.output === 'object' &&
       'url' in result.output &&
-      typeof result.output.url === 'string'
+      typeof (result.output as Record<string, unknown>).url === 'string'
     ) {
-      return result.output.url;
+      return (result.output as Record<string, unknown>).url as string;
     }
 
+    // audio_url: "https://..."
     if (typeof result.audio_url === 'string') {
       return result.audio_url;
     }
