@@ -97,10 +97,12 @@ export class WanService {
       throw new InternalServerErrorException(`WAN submit failed: ${response.status} ${text}`);
     }
 
-    const data = (await response.json()) as Record<string, unknown>;
-    this.logger.log(`WAN submit response: ${JSON.stringify(data).slice(0, 300)}`);
+    const raw = (await response.json()) as Record<string, unknown>;
+    this.logger.log(`WAN submit response: ${JSON.stringify(raw).slice(0, 500)}`);
+    // WAN wraps response under "data" key: { code: 200, data: { id: "...", ... } }
+    const data = (raw.data && typeof raw.data === 'object' ? raw.data : raw) as Record<string, unknown>;
 
-    const id = (data.id ?? data.task_id ?? (data as any).data?.id) as string | undefined;
+    const id = (data.id ?? data.task_id ?? raw.id) as string | undefined;
     if (!id) {
       throw new InternalServerErrorException(
         `WAN returned no task ID: ${JSON.stringify(data).slice(0, 500)}`,
@@ -132,18 +134,19 @@ export class WanService {
         );
       }
 
-      const data = (await response.json()) as Record<string, unknown>;
-      const status = String(data.status ?? '');
-      this.logger.log(`WAN poll ${taskId}: status=${status}`);
+      const raw = (await response.json()) as Record<string, unknown>;
+      // WAN API may nest the actual result under "data" key
+      const data = (raw.data && typeof raw.data === 'object' ? raw.data : raw) as Record<string, unknown>;
+      const status = String(data.status ?? raw.status ?? '');
+      this.logger.log(`WAN poll ${taskId}: status=${status}, raw keys=${Object.keys(raw).join(',')}`);
 
       if (status === 'completed') {
-        // Response already contains outputs — use it directly
         return data;
       }
 
       if (status === 'failed' || status === 'canceled') {
         throw new InternalServerErrorException(
-          `WAN task ${taskId} ${status}: ${data.error ?? 'unknown error'}`,
+          `WAN task ${taskId} ${status}: ${data.error ?? raw.error ?? 'unknown error'}`,
         );
       }
 
