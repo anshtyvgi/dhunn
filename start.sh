@@ -1,6 +1,13 @@
 #!/bin/sh
 set -e
 
+# Write .env for Next.js (Edge middleware needs CLERK_SECRET_KEY at runtime)
+cat > /app/frontend/.env <<ENVEOF
+CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4000/api}
+ENVEOF
+
 # Run Prisma migrations
 cd /app/backend
 npx prisma migrate deploy || echo "Migration warning (may be ok on first deploy)"
