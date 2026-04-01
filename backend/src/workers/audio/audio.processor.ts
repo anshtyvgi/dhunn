@@ -7,7 +7,7 @@ import { WanService } from '../../providers/wan/wan.service';
 import { R2Service } from '../../providers/r2/r2.service';
 
 @Injectable()
-@Processor(AUDIO_QUEUE, { concurrency: 6 })
+@Processor(AUDIO_QUEUE, { concurrency: 1 })
 export class AudioProcessor extends WorkerHost {
   private readonly logger = new Logger(AudioProcessor.name);
 

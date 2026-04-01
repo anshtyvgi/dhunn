@@ -47,13 +47,14 @@ export class OrchestratorProcessor extends WorkerHost {
     if (session.songs.length > 0) {
       await Promise.all([
         this.audioQueue.addBulk(
-          session.songs.map((song) => ({
+          session.songs.map((song, i) => ({
             name: JOB_GENERATE_AUDIO,
             data: { songId: song.id },
             opts: {
-              jobId: `audio:${song.id}`,
+              jobId: `audio_${song.id}`,
+              delay: i * 10000,
               attempts: 3,
-              backoff: { type: 'exponential', delay: 5000 },
+              backoff: { type: 'exponential', delay: 10000 },
               removeOnComplete: 1000,
               removeOnFail: 1000,
             },
@@ -64,7 +65,7 @@ export class OrchestratorProcessor extends WorkerHost {
             name: JOB_GENERATE_COVER,
             data: { songId: song.id },
             opts: {
-              jobId: `cover:${song.id}`,
+              jobId: `cover_${song.id}`,
               attempts: 3,
               backoff: { type: 'exponential', delay: 4000 },
               removeOnComplete: 1000,
@@ -108,7 +109,7 @@ export class OrchestratorProcessor extends WorkerHost {
             name: JOB_GENERATE_AUDIO,
             data: { songId: song.id },
             opts: {
-              jobId: `audio:${song.id}`,
+              jobId: `audio_${song.id}`,
               attempts: 3,
               backoff: { type: 'exponential', delay: 5000 },
               removeOnComplete: 1000,
@@ -121,7 +122,7 @@ export class OrchestratorProcessor extends WorkerHost {
             name: JOB_GENERATE_COVER,
             data: { songId: song.id },
             opts: {
-              jobId: `cover:${song.id}`,
+              jobId: `cover_${song.id}`,
               attempts: 3,
               backoff: { type: 'exponential', delay: 4000 },
               removeOnComplete: 1000,

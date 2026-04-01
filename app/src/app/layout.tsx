@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AppShell } from "@/components/layout/AppShell";
+import { DevPanelLoader } from "@/components/dev/DevPanelLoader";
 import { ClerkProvider } from "@clerk/nextjs";
 
 export const metadata: Metadata = {
@@ -31,6 +32,7 @@ export default function RootLayout({
       <body suppressHydrationWarning className="min-h-full flex flex-col antialiased">
         <ClerkProvider>
           <AppShell>{children}</AppShell>
+          <DevPanelLoader />
         </ClerkProvider>
       </body>
     </html>

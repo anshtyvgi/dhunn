@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 interface WanSubmitResponse {
   id: string;
   status: string;
+  pollUrl?: string;
 }
 
 @Injectable()
@@ -87,7 +88,17 @@ export class WanService {
       );
     }
 
-    return (await response.json()) as WanSubmitResponse;
+    const data = await response.json() as Record<string, unknown>;
+    const id = (data.id ?? data.task_id ?? (data as any).data?.id) as string | undefined;
+    if (!id) {
+      throw new InternalServerErrorException(
+        `WAN submit returned no task ID: ${JSON.stringify(data).slice(0, 500)}`,
+      );
+    }
+
+    // Use the poll URL from the response if available
+    const pollUrl = (data as any).urls?.get as string | undefined;
+    return { id, status: String(data.status ?? 'created'), pollUrl };
   }
 
   private async pollResult(taskId: string) {

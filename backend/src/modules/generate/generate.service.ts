@@ -109,7 +109,7 @@ export class GenerateService {
       JOB_START_GENERATION,
       { sessionId: session.id },
       {
-        jobId: `start:${session.id}`,
+        jobId: `start_${session.id}`,
         attempts: 3,
         backoff: { type: 'exponential', delay: 4000 },
         removeOnComplete: 1000,

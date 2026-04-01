@@ -42,7 +42,7 @@ export class GeminiService {
       generationConfig: {
         temperature: 0.95,
         topP: 0.95,
-        maxOutputTokens: 4096,
+        maxOutputTokens: 8192,
         responseMimeType: 'application/json',
       },
     };
@@ -68,10 +68,29 @@ export class GeminiService {
       );
     }
 
-    const parsed = JSON.parse(text) as {
-      globalTags?: string[];
-      variants: GeminiVariant[];
-    };
+    let parsed: { globalTags?: string[]; variants: GeminiVariant[] };
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      // Attempt to repair truncated JSON by closing open structures
+      let repaired = text.trim();
+      // Strip trailing incomplete string values
+      repaired = repaired.replace(/,\s*"[^"]*$/, '');
+      repaired = repaired.replace(/,\s*$/, '');
+      // Close open arrays/objects
+      const opens = (repaired.match(/[\[{]/g) ?? []).length;
+      const closes = (repaired.match(/[\]}]/g) ?? []).length;
+      for (let i = 0; i < opens - closes; i++) {
+        repaired += repaired.lastIndexOf('[') > repaired.lastIndexOf('{') ? ']' : '}';
+      }
+      try {
+        parsed = JSON.parse(repaired);
+      } catch {
+        throw new InternalServerErrorException(
+          'Gemini returned malformed JSON for lyric variants',
+        );
+      }
+    }
 
     const variants = parsed.variants?.slice(0, 3);
     if (!variants || variants.length !== 3) {
