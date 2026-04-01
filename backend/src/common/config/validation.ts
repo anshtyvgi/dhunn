@@ -18,9 +18,7 @@ const envSchema = z.object({
   FRONTEND_URL: isProduction
     ? z.string().url()
     : z.string().url().optional(),
-  ADMIN_USER_IDS: isProduction
-    ? z.string().min(1, 'ADMIN_USER_IDS must be set in production')
-    : z.string().optional(),
+  ADMIN_USER_IDS: z.string().optional(),
 });
 
 export function validate(config: Record<string, unknown>) {
