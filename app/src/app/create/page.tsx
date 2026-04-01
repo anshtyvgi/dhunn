@@ -60,22 +60,29 @@ export default function CreatePage() {
   }, []);
 
   // Resume polling if there's an in-progress generation (e.g. after page refresh)
+  // Only runs once on mount — won't interfere with handleCreate
+  const hasResumed = useRef(false);
   useEffect(() => {
+    if (hasResumed.current) return;
     if (
       currentGeneration &&
       generationStatus !== "completed" &&
       generationStatus !== "failed" &&
-      generationStatus !== "idle" &&
-      !stopRef.current
+      generationStatus !== "idle"
     ) {
+      hasResumed.current = true;
       setIsGenerating(true);
+      stopRef.current?.(); // kill any existing poller
       stopRef.current = startPolling(currentGeneration.id, (data) => {
         const done = data.status === "completed";
+        const failed = data.status === "failed";
         const updated = {
           ...currentGeneration,
-          status: done ? ("completed" as const) : ("generating-tracks" as const),
+          status: done ? ("completed" as const) : failed ? ("failed" as const) : ("generating-tracks" as const),
           posterUrl: data.posterUrl || undefined,
-          tracks: data.tracks.map((t) => ({ id: t.id, status: t.status, audioUrl: t.audioUrl || undefined })),
+          tracks: data.tracks.length > 0
+            ? data.tracks.map((t) => ({ id: t.id, status: t.status, audioUrl: t.audioUrl || undefined }))
+            : currentGeneration.tracks, // keep existing tracks if poll returns empty
         };
         store.setCurrentGeneration(updated);
         if (done) {
@@ -83,7 +90,7 @@ export default function CreatePage() {
           store.addGeneration({ ...updated, status: "completed" });
           setIsGenerating(false);
         }
-        if (data.status === "failed") {
+        if (failed) {
           store.setGenerationStatus("failed");
           setIsGenerating(false);
         }
@@ -154,19 +161,28 @@ export default function CreatePage() {
       };
 
       store.setCurrentGeneration(gen);
+      store.setIsFirstTime(false); // first gen used
 
+      stopRef.current?.(); // kill any existing poller
       stopRef.current = startPolling(musicResult.id, (data) => {
         const done = data.status === "completed";
+        const failed = data.status === "failed";
         const updated = {
           ...gen,
-          status: done ? ("completed" as const) : ("generating-tracks" as const),
+          status: done ? ("completed" as const) : failed ? ("failed" as const) : ("generating-tracks" as const),
           posterUrl: data.posterUrl || undefined,
-          tracks: data.tracks.map((t) => ({ id: t.id, status: t.status, audioUrl: t.audioUrl || undefined })),
+          tracks: data.tracks.length > 0
+            ? data.tracks.map((t) => ({ id: t.id, status: t.status, audioUrl: t.audioUrl || undefined }))
+            : gen.tracks, // keep placeholder tracks if backend hasn't created variants yet
         };
         store.setCurrentGeneration(updated);
         if (done) {
           store.setGenerationStatus("completed");
           store.addGeneration({ ...updated, status: "completed" });
+          setIsGenerating(false);
+        }
+        if (failed) {
+          store.setGenerationStatus("failed");
           setIsGenerating(false);
         }
       }, () => {

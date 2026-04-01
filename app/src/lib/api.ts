@@ -87,7 +87,8 @@ export async function pollStatus(generationId: string): Promise<StatusResponse> 
   return response.json();
 }
 
-const MAX_POLL_DURATION_MS = 480000; // 8 minutes max polling
+const MAX_POLL_DURATION_MS = 480000; // 8 minutes max
+const MAX_CONSECUTIVE_ERRORS = 5;
 
 export function startPolling(
   generationId: string,
@@ -97,6 +98,7 @@ export function startPolling(
 ): () => void {
   let stopped = false;
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let consecutiveErrors = 0;
   const startedAt = Date.now();
 
   const poll = async () => {
@@ -109,12 +111,25 @@ export function startPolling(
 
     try {
       const data = await pollStatus(generationId);
+      consecutiveErrors = 0; // reset on success
       if (stopped) return;
       onUpdate(data);
       if (data.status === "completed" || data.status === "failed") return;
       timeoutId = setTimeout(poll, intervalMs);
     } catch (err) {
-      if (!stopped) onError(err instanceof Error ? err : new Error("Polling failed"));
+      consecutiveErrors++;
+      console.warn(`[Polling] Error #${consecutiveErrors} for ${generationId}:`, err);
+
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        if (!stopped) onError(err instanceof Error ? err : new Error("Polling failed after retries"));
+        return;
+      }
+
+      // Retry with backoff instead of dying on first error
+      if (!stopped) {
+        const backoff = Math.min(intervalMs * consecutiveErrors, 15000);
+        timeoutId = setTimeout(poll, backoff);
+      }
     }
   };
 
