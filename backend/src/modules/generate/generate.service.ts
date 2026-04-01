@@ -131,6 +131,39 @@ export class GenerateService {
     return this.getSessionForUser(session.id, user.id);
   }
 
+  async listSessionsForUser(userId: string) {
+    const sessions = await this.prisma.generationSession.findMany({
+      where: { userId },
+      include: {
+        songs: { orderBy: { variantIndex: 'asc' } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    return sessions.map((session) => ({
+      id: session.id,
+      status: session.status,
+      type: session.type,
+      input: session.input,
+      coinCost: session.coinCost,
+      failedReason: session.failedReason,
+      createdAt: session.createdAt,
+      completedAt: session.completedAt,
+      variants: session.songs.map((song) => ({
+        id: song.id,
+        variantIndex: song.variantIndex,
+        title: song.title,
+        vibe: song.vibe,
+        lyrics: song.lyrics,
+        audioStatus: song.status,
+        coverStatus: song.coverStatus,
+        audioUrl: song.audioUrl,
+        coverImageUrl: song.coverImageUrl,
+      })),
+    }));
+  }
+
   async getSessionForUser(sessionId: string, userId: string) {
     const session = await this.prisma.generationSession.findFirst({
       where: { id: sessionId, userId },

@@ -2,9 +2,10 @@
 
 import { useStore } from "@/stores/useStore";
 import { usePlayerStore } from "@/stores/playerStore";
-import { Play, Pause, Heart, Share2, Lock, Music, Plus } from "lucide-react";
+import { Play, Pause, Share2, Lock, Music, Plus, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
+import type { Generation } from "@/types";
 
 const grads = [
   "from-rose-400 to-violet-500",
@@ -15,14 +16,37 @@ const grads = [
 ];
 
 export default function LibraryPage() {
-  const generations = useStore((s) => s.generations);
+  const storeGenerations = useStore((s) => s.generations);
   const player = usePlayerStore();
+  const [backendGenerations, setBackendGenerations] = useState<Generation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch from backend on mount
+  useEffect(() => {
+    fetch("/api/sessions")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: Generation[]) => setBackendGenerations(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Merge: backend sessions + in-memory (dedup by ID, backend wins)
+  const generations = useMemo(() => {
+    const byId = new Map<string, Generation>();
+    // Backend first (authoritative)
+    backendGenerations.forEach((g) => byId.set(g.id, g));
+    // In-memory overlay (may have fresher polling state for active generation)
+    storeGenerations.forEach((g) => {
+      if (!byId.has(g.id)) byId.set(g.id, g);
+    });
+    return Array.from(byId.values());
+  }, [backendGenerations, storeGenerations]);
 
   // Group by person
   const grouped = useMemo(() => {
     const groups: Record<string, typeof generations> = {};
     generations.forEach((gen) => {
-      const name = gen.input.recipientName;
+      const name = gen.input?.recipientName ?? "Someone";
       if (!groups[name]) groups[name] = [];
       groups[name].push(gen);
     });
@@ -32,14 +56,19 @@ export default function LibraryPage() {
   const personNames = Object.keys(grouped);
   const mostRecent = generations[0];
 
-  // Drafts = not paid
-  const drafts = generations.filter((g) => !g.isPaid);
-
   const playTrack = (trackId: string, audioUrl: string, title: string, genre: string, mood: string, gradient: string) => {
     if (player.currentTrack?.id === trackId && player.isPlaying) { player.pause(); return; }
     if (player.currentTrack?.id === trackId) { player.resume(); return; }
     player.play({ id: trackId, title, artist: "Dhun AI", audioUrl, genre, mood, gradient });
   };
+
+  if (loading) {
+    return (
+      <div className="p-6 lg:p-8 flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 text-[#CCC] animate-spin" />
+      </div>
+    );
+  }
 
   if (generations.length === 0) {
     return (
@@ -66,12 +95,11 @@ export default function LibraryPage() {
       {mostRecent && (
         <div className="bg-white rounded-2xl border border-[#EAEAEA] overflow-hidden">
           <div className="flex flex-col sm:flex-row">
-            {/* Poster */}
             <div className={`sm:w-48 aspect-square sm:aspect-auto bg-gradient-to-br ${grads[0]} relative flex items-center justify-center shrink-0`}>
               <div className="absolute inset-0 banner-overlay opacity-20" />
               {mostRecent.tracks[0]?.audioUrl && (
                 <button
-                  onClick={() => playTrack(mostRecent.tracks[0].id, mostRecent.tracks[0].audioUrl!, `For ${mostRecent.input.recipientName}`, mostRecent.input.genre, mostRecent.input.mood, grads[0])}
+                  onClick={() => playTrack(mostRecent.tracks[0].id, mostRecent.tracks[0].audioUrl!, `For ${mostRecent.input?.recipientName ?? "Someone"}`, mostRecent.input?.genre ?? "bollywood", mostRecent.input?.mood ?? "romantic", grads[0])}
                   className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors relative z-10"
                 >
                   {player.currentTrack?.id === mostRecent.tracks[0].id && player.isPlaying ? (
@@ -81,18 +109,25 @@ export default function LibraryPage() {
                   )}
                 </button>
               )}
+              {/* Show processing indicator */}
+              {mostRecent.status !== "completed" && mostRecent.status !== "failed" && (
+                <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center relative z-10">
+                  <Loader2 className="w-7 h-7 text-white animate-spin" />
+                </div>
+              )}
             </div>
-            {/* Info */}
             <div className="flex-1 p-5">
-              <p className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">Most Recent</p>
-              <h3 className="text-lg font-bold text-[#111]">For {mostRecent.input.recipientName}</h3>
+              <p className="text-[10px] font-semibold text-[#999] uppercase tracking-wider mb-1">
+                {mostRecent.status === "completed" ? "Most Recent" : mostRecent.status === "failed" ? "Failed" : "Processing..."}
+              </p>
+              <h3 className="text-lg font-bold text-[#111]">For {mostRecent.input?.recipientName ?? "Someone"}</h3>
               <p className="text-sm text-[#999] capitalize mt-0.5">
-                {mostRecent.input.occasion} · {mostRecent.input.mood} · {mostRecent.input.genre}
+                {mostRecent.input?.occasion ?? "love"} · {mostRecent.input?.mood ?? "romantic"} · {mostRecent.input?.genre ?? "bollywood"}
               </p>
               <div className="flex items-center gap-2 mt-4">
                 {mostRecent.tracks[0]?.audioUrl && (
                   <button
-                    onClick={() => playTrack(mostRecent.tracks[0].id, mostRecent.tracks[0].audioUrl!, `For ${mostRecent.input.recipientName}`, mostRecent.input.genre, mostRecent.input.mood, grads[0])}
+                    onClick={() => playTrack(mostRecent.tracks[0].id, mostRecent.tracks[0].audioUrl!, `For ${mostRecent.input?.recipientName ?? "Someone"}`, mostRecent.input?.genre ?? "bollywood", mostRecent.input?.mood ?? "romantic", grads[0])}
                     className="px-4 py-2 rounded-lg bg-[#111] text-white text-xs font-semibold cursor-pointer hover:bg-[#333] transition-colors flex items-center gap-1.5"
                   >
                     <Play className="w-3 h-3" /> Play
@@ -122,15 +157,31 @@ export default function LibraryPage() {
               <span className="text-[11px] text-[#CCC]">{gens.length} song{gens.length !== 1 ? "s" : ""}</span>
             </div>
             <div className="flex gap-3 overflow-x-auto pb-2">
-              {gens.map((gen, gi) => (
-                gen.tracks.filter((t) => t.status === "completed").map((track, ti) => {
+              {gens.map((gen, gi) => {
+                const completedTracks = gen.tracks.filter((t) => t.status === "completed");
+                const isProcessing = gen.status !== "completed" && gen.status !== "failed";
+
+                // Show processing card if no completed tracks yet
+                if (completedTracks.length === 0 && isProcessing) {
+                  return (
+                    <div key={gen.id} className="shrink-0 w-[160px]">
+                      <div className={`w-full aspect-square rounded-2xl bg-gradient-to-br ${grads[gi % grads.length]} relative flex items-center justify-center overflow-hidden animate-pulse`}>
+                        <Loader2 className="w-8 h-8 text-white animate-spin" />
+                      </div>
+                      <p className="text-xs font-semibold text-[#111] mt-2 truncate">Processing...</p>
+                      <p className="text-[10px] text-[#999] capitalize">{gen.input?.mood ?? "romantic"} · {gen.input?.genre ?? "bollywood"}</p>
+                    </div>
+                  );
+                }
+
+                return completedTracks.map((track, ti) => {
                   const grad = grads[(gi + ti) % grads.length];
                   const isThisPlaying = player.currentTrack?.id === track.id && player.isPlaying;
                   return (
                     <div
                       key={track.id}
                       className="shrink-0 w-[160px] cursor-pointer group"
-                      onClick={() => track.audioUrl && playTrack(track.id, track.audioUrl, `For ${name}`, gen.input.genre, gen.input.mood, grad)}
+                      onClick={() => track.audioUrl && playTrack(track.id, track.audioUrl, `For ${name}`, gen.input?.genre ?? "bollywood", gen.input?.mood ?? "romantic", grad)}
                     >
                       <div className={`w-full aspect-square rounded-2xl bg-gradient-to-br ${grad} relative flex items-center justify-center overflow-hidden group-hover:shadow-lg transition-shadow`}>
                         <div className="absolute inset-0 banner-overlay opacity-20" />
@@ -143,39 +194,16 @@ export default function LibraryPage() {
                           </div>
                         )}
                       </div>
-                      <p className="text-xs font-semibold text-[#111] mt-2 truncate">Track {ti + 1}</p>
-                      <p className="text-[10px] text-[#999] capitalize">{gen.input.mood} · {gen.input.genre}</p>
+                      <p className="text-xs font-semibold text-[#111] mt-2 truncate">{(track as any).title || `Track ${ti + 1}`}</p>
+                      <p className="text-[10px] text-[#999] capitalize">{gen.input?.mood ?? "romantic"} · {gen.input?.genre ?? "bollywood"}</p>
                     </div>
                   );
-                })
-              ))}
+                });
+              })}
             </div>
           </div>
         );
       })}
-
-      {/* ═══ 3. DRAFTS / LOCKED ═══ */}
-      {drafts.length > 0 && (
-        <div>
-          <h3 className="text-sm font-bold text-[#111] mb-3">Drafts & Locked</h3>
-          <div className="bg-white rounded-2xl border border-[#EAEAEA] divide-y divide-[#F5F5F5]">
-            {drafts.map((gen, i) => (
-              <div key={gen.id} className="flex items-center gap-4 px-4 py-3">
-                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${grads[i % grads.length]} flex items-center justify-center shrink-0 opacity-50`}>
-                  <Lock className="w-4 h-4 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-[#111] truncate opacity-60">For {gen.input.recipientName}</p>
-                  <p className="text-[11px] text-[#999] capitalize">{gen.input.occasion} · {gen.input.mood}</p>
-                </div>
-                <button className="px-3 py-1.5 rounded-lg border border-[#EAEAEA] text-[10px] font-semibold text-[#888] hover:border-[#111] hover:text-[#111] transition-colors cursor-pointer flex items-center gap-1">
-                  <Lock className="w-2.5 h-2.5" /> Unlock
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

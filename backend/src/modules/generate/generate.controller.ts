@@ -25,6 +25,12 @@ export class GenerateController {
     return this.generateService.previewLyrics(dto);
   }
 
+  @Get('sessions')
+  async listSessions(@CurrentUser() authUser: AuthenticatedUser) {
+    const user = await this.usersService.getOrCreate(authUser);
+    return this.generateService.listSessionsForUser(user.id);
+  }
+
   @Get('session/:id')
   async getSession(
     @Param('id') id: string,

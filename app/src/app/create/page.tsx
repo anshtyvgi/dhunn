@@ -59,46 +59,65 @@ export default function CreatePage() {
     return () => { stopRef.current?.(); };
   }, []);
 
-  // Resume polling if there's an in-progress generation (e.g. after page refresh)
-  // Only runs once on mount — won't interfere with handleCreate
+  // Resume polling for active generation on mount (survives refresh via localStorage)
   const hasResumed = useRef(false);
   useEffect(() => {
     if (hasResumed.current) return;
-    if (
-      currentGeneration &&
-      generationStatus !== "completed" &&
-      generationStatus !== "failed" &&
-      generationStatus !== "idle"
-    ) {
-      hasResumed.current = true;
-      setIsGenerating(true);
-      stopRef.current?.(); // kill any existing poller
-      stopRef.current = startPolling(currentGeneration.id, (data) => {
-        const done = data.status === "completed";
-        const failed = data.status === "failed";
-        const updated = {
-          ...currentGeneration,
-          status: done ? ("completed" as const) : failed ? ("failed" as const) : ("generating-tracks" as const),
-          posterUrl: data.posterUrl || undefined,
-          tracks: data.tracks.length > 0
-            ? data.tracks.map((t) => ({ id: t.id, status: t.status, audioUrl: t.audioUrl || undefined }))
-            : currentGeneration.tracks, // keep existing tracks if poll returns empty
-        };
-        store.setCurrentGeneration(updated);
-        if (done) {
-          store.setGenerationStatus("completed");
-          store.addGeneration({ ...updated, status: "completed" });
-          setIsGenerating(false);
-        }
-        if (failed) {
-          store.setGenerationStatus("failed");
-          setIsGenerating(false);
-        }
-      }, () => {
+
+    // Check in-memory first, then localStorage
+    let activeId = currentGeneration?.id;
+    if (!activeId) {
+      try { activeId = localStorage.getItem("dhun_active_generation") ?? undefined; } catch {}
+    }
+    if (!activeId) return;
+
+    // Don't resume if already terminal
+    if (currentGeneration && (generationStatus === "completed" || generationStatus === "failed")) {
+      try { localStorage.removeItem("dhun_active_generation"); } catch {}
+      return;
+    }
+
+    hasResumed.current = true;
+    setIsGenerating(true);
+    store.setGenerationStatus("generating-tracks");
+
+    stopRef.current?.();
+    stopRef.current = startPolling(activeId, (data) => {
+      const done = data.status === "completed";
+      const failed = data.status === "failed";
+
+      const tracks = data.tracks.length > 0
+        ? data.tracks.map((t) => ({ id: t.id, status: t.status, audioUrl: t.audioUrl || undefined }))
+        : currentGeneration?.tracks ?? [{ id: "placeholder", status: "processing" as const }];
+
+      const updated = {
+        id: activeId!,
+        input: currentGeneration?.input ?? dedication,
+        status: done ? ("completed" as const) : failed ? ("failed" as const) : ("generating-tracks" as const),
+        posterUrl: data.posterUrl || undefined,
+        tracks,
+        lyrics: currentGeneration?.lyrics ?? data.tracks.map((t) => `${t.title ?? ""}\n\n${t.lyrics ?? ""}`).join("\n\n---\n\n"),
+        createdAt: currentGeneration?.createdAt ?? new Date().toISOString(),
+        isPaid: currentGeneration?.isPaid ?? false,
+        isShared: currentGeneration?.isShared ?? false,
+      };
+      store.setCurrentGeneration(updated);
+      if (done) {
+        store.setGenerationStatus("completed");
+        store.addGeneration({ ...updated, status: "completed" });
+        setIsGenerating(false);
+        try { localStorage.removeItem("dhun_active_generation"); } catch {}
+      }
+      if (failed) {
         store.setGenerationStatus("failed");
         setIsGenerating(false);
-      }, 5000);
-    }
+        try { localStorage.removeItem("dhun_active_generation"); } catch {}
+      }
+    }, () => {
+      store.setGenerationStatus("failed");
+      setIsGenerating(false);
+      try { localStorage.removeItem("dhun_active_generation"); } catch {}
+    }, 5000);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -161,7 +180,9 @@ export default function CreatePage() {
       };
 
       store.setCurrentGeneration(gen);
-      store.setIsFirstTime(false); // first gen used
+      store.setIsFirstTime(false);
+      // Persist so we can resume after refresh
+      try { localStorage.setItem("dhun_active_generation", musicResult.id); } catch {}
 
       stopRef.current?.(); // kill any existing poller
       stopRef.current = startPolling(musicResult.id, (data) => {
@@ -180,14 +201,17 @@ export default function CreatePage() {
           store.setGenerationStatus("completed");
           store.addGeneration({ ...updated, status: "completed" });
           setIsGenerating(false);
+          try { localStorage.removeItem("dhun_active_generation"); } catch {}
         }
         if (failed) {
           store.setGenerationStatus("failed");
           setIsGenerating(false);
+          try { localStorage.removeItem("dhun_active_generation"); } catch {}
         }
       }, () => {
         store.setGenerationStatus("failed");
         setIsGenerating(false);
+        try { localStorage.removeItem("dhun_active_generation"); } catch {}
         if (!isFirstTime) store.addCoins(cost);
       }, 5000);
     } catch {
