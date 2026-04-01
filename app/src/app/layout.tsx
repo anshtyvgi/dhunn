@@ -4,6 +4,10 @@ import { AppShell } from "@/components/layout/AppShell";
 import { DevPanelLoader } from "@/components/dev/DevPanelLoader";
 import { ClerkProvider } from "@clerk/nextjs";
 
+// Force all pages to be server-rendered (not prerendered at build time)
+// Required because ClerkProvider needs NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY at runtime
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Dhun — Make a song for someone you love",
   description:
