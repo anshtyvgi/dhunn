@@ -5,11 +5,6 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-interface WanSubmitResponse {
-  id: string;
-  status: string;
-}
-
 @Injectable()
 export class WanService {
   private readonly logger = new Logger(WanService.name);
@@ -38,14 +33,14 @@ export class WanService {
     tags: string[];
     durationSeconds?: number;
   }) {
-    const submit = await this.submitPrediction(params);
-    this.logger.log(`WAN task submitted: ${submit.id}`);
+    const taskId = await this.submitPrediction(params);
+    this.logger.log(`WAN task submitted: ${taskId}`);
 
-    const result = await this.pollResult(submit.id);
+    const result = await this.pollUntilDone(taskId);
 
     const outputUrl = this.extractOutputUrl(result);
     if (!outputUrl) {
-      this.logger.error(`WAN completed but no output URL found in: ${JSON.stringify(result).slice(0, 500)}`);
+      this.logger.error(`No output URL in: ${JSON.stringify(result).slice(0, 500)}`);
       throw new InternalServerErrorException(
         'WAN completed without returning an audio asset',
       );
@@ -55,15 +50,13 @@ export class WanService {
     const response = await fetch(outputUrl);
     if (!response.ok) {
       throw new InternalServerErrorException(
-        `Failed to download WAN audio asset: ${response.status}`,
+        `Failed to download WAN audio: ${response.status}`,
       );
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-
     return {
-      taskId: submit.id,
-      buffer: Buffer.from(arrayBuffer),
+      taskId,
+      buffer: Buffer.from(await response.arrayBuffer()),
       mimeType: response.headers.get('content-type') ?? 'audio/mpeg',
       sourceUrl: outputUrl,
     };
@@ -73,67 +66,35 @@ export class WanService {
     lyrics: string;
     tags: string[];
     durationSeconds?: number;
-  }): Promise<WanSubmitResponse> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
-    let response: Response;
-    try {
-      response = await fetch(`${this.baseUrl}/${this.modelPath}`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          duration: params.durationSeconds ?? 60,
-          lyrics: params.lyrics,
-          tags: params.tags.join(', '),
-        }),
-        signal: controller.signal,
-      });
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') {
-        throw new InternalServerErrorException('WAN submit timed out');
-      }
-      throw err;
-    } finally {
-      clearTimeout(timeout);
-    }
+  }): Promise<string> {
+    const body = JSON.stringify({
+      duration: params.durationSeconds ?? 60,
+      lyrics: params.lyrics,
+      tags: params.tags.join(', '),
+    });
 
-    // Retry on 429 (rate limit)
+    let response = await this.fetchWithTimeout(
+      `${this.baseUrl}/${this.modelPath}`,
+      { method: 'POST', headers: this.authHeaders({ 'Content-Type': 'application/json' }), body },
+      60000,
+    );
+
+    // Retry on 429
     if (response.status === 429) {
-      const retryAfter = parseInt(response.headers.get('retry-after') ?? '30', 10);
-      const waitMs = Math.min(retryAfter * 1000, 60000);
-      this.logger.warn(`WAN 429 rate limited, waiting ${waitMs}ms`);
-      await new Promise((resolve) => setTimeout(resolve, waitMs));
-
-      const retryController = new AbortController();
-      const retryTimeout = setTimeout(() => retryController.abort(), 60000);
-      try {
-        response = await fetch(`${this.baseUrl}/${this.modelPath}`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            duration: params.durationSeconds ?? 60,
-            lyrics: params.lyrics,
-            tags: params.tags.join(', '),
-          }),
-          signal: retryController.signal,
-        });
-      } finally {
-        clearTimeout(retryTimeout);
-      }
+      const wait = Math.min(parseInt(response.headers.get('retry-after') ?? '30', 10) * 1000, 60000);
+      this.logger.warn(`WAN 429, waiting ${wait}ms`);
+      await this.sleep(wait);
+      response = await this.fetchWithTimeout(
+        `${this.baseUrl}/${this.modelPath}`,
+        { method: 'POST', headers: this.authHeaders({ 'Content-Type': 'application/json' }), body },
+        60000,
+      );
     }
 
     if (!response.ok) {
-      const body = await response.text();
-      this.logger.error(`WAN submit failed: ${response.status} ${body}`);
-      throw new InternalServerErrorException(
-        `WAN submit failed: ${response.status} ${body}`,
-      );
+      const text = await response.text();
+      this.logger.error(`WAN submit failed: ${response.status} ${text}`);
+      throw new InternalServerErrorException(`WAN submit failed: ${response.status} ${text}`);
     }
 
     const data = (await response.json()) as Record<string, unknown>;
@@ -142,55 +103,56 @@ export class WanService {
     const id = (data.id ?? data.task_id ?? (data as any).data?.id) as string | undefined;
     if (!id) {
       throw new InternalServerErrorException(
-        `WAN submit returned no task ID: ${JSON.stringify(data).slice(0, 500)}`,
+        `WAN returned no task ID: ${JSON.stringify(data).slice(0, 500)}`,
       );
     }
-
-    return { id, status: String(data.status ?? 'created') };
+    return id;
   }
 
-  private async pollResult(taskId: string): Promise<Record<string, unknown>> {
+  /**
+   * Poll GET /predictions/{id} until status is "completed" or "failed".
+   * The completed response itself contains the outputs array.
+   */
+  private async pollUntilDone(taskId: string): Promise<Record<string, unknown>> {
     const startedAt = Date.now();
 
     while (Date.now() - startedAt < this.timeoutMs) {
-      const statusResponse = await fetch(
-        `${this.baseUrl}/predictions/${taskId}/result`,
-        {
-          headers: { Authorization: `Bearer ${this.apiKey}` },
-        },
-      );
+      const response = await fetch(`${this.baseUrl}/predictions/${taskId}`, {
+        headers: this.authHeaders(),
+      });
 
-      if (!statusResponse.ok) {
-        // Non-200 on poll is not fatal — might just not be ready yet
-        if (statusResponse.status === 404 || statusResponse.status === 202) {
-          await new Promise((resolve) => setTimeout(resolve, this.intervalMs));
+      if (!response.ok) {
+        // 404 = not ready yet on some providers
+        if (response.status === 404) {
+          await this.sleep(this.intervalMs);
           continue;
         }
         throw new InternalServerErrorException(
-          `WAN poll failed: ${statusResponse.status} ${await statusResponse.text()}`,
+          `WAN poll failed: ${response.status} ${await response.text()}`,
         );
       }
 
-      const data = (await statusResponse.json()) as Record<string, unknown>;
-      this.logger.log(`WAN poll ${taskId}: status=${data.status}`);
+      const data = (await response.json()) as Record<string, unknown>;
+      const status = String(data.status ?? '');
+      this.logger.log(`WAN poll ${taskId}: status=${status}`);
 
-      if (data.status === 'completed') {
-        // The response itself contains outputs — use it directly
+      if (status === 'completed') {
+        // Response already contains outputs — use it directly
         return data;
       }
 
-      if (data.status === 'failed' || data.status === 'canceled') {
-        const errMsg = (data.error as string) ?? `WAN prediction ${data.status}`;
+      if (status === 'failed' || status === 'canceled') {
         throw new InternalServerErrorException(
-          `WAN prediction failed for task ${taskId}: ${errMsg}`,
+          `WAN task ${taskId} ${status}: ${data.error ?? 'unknown error'}`,
         );
       }
 
-      await new Promise((resolve) => setTimeout(resolve, this.intervalMs));
+      // processing / queued / starting — wait and retry
+      await this.sleep(this.intervalMs);
     }
 
     throw new InternalServerErrorException(
-      `WAN prediction timed out for task ${taskId} after ${this.timeoutMs}ms`,
+      `WAN task ${taskId} timed out after ${this.timeoutMs}ms`,
     );
   }
 
@@ -199,27 +161,35 @@ export class WanService {
     if (Array.isArray(result.outputs) && typeof result.outputs[0] === 'string') {
       return result.outputs[0];
     }
-
-    // output: "https://..."
     if (typeof result.output === 'string') {
       return result.output;
     }
-
-    // output: { url: "https://..." }
-    if (
-      result.output &&
-      typeof result.output === 'object' &&
-      'url' in result.output &&
-      typeof (result.output as Record<string, unknown>).url === 'string'
-    ) {
-      return (result.output as Record<string, unknown>).url as string;
-    }
-
-    // audio_url: "https://..."
     if (typeof result.audio_url === 'string') {
       return result.audio_url;
     }
-
     return null;
+  }
+
+  private authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+    return { Authorization: `Bearer ${this.apiKey}`, ...extra };
+  }
+
+  private async fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), ms);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') {
+        throw new InternalServerErrorException(`Request timed out: ${url}`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

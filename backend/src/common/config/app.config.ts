@@ -10,7 +10,7 @@ export default () => ({
   geminiTextModel: process.env.GEMINI_TEXT_MODEL ?? 'gemini-2.5-flash',
   geminiImageModel:
     process.env.GEMINI_IMAGE_MODEL ??
-    'gemini-2.0-flash-exp',
+    'gemini-2.0-flash',
   wanApiKey: process.env.WAN_API_KEY,
   wanBaseUrl: process.env.WAN_BASE_URL ?? 'https://api.wavespeed.ai/api/v3',
   wanAudioModel:
