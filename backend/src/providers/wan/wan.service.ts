@@ -112,45 +112,40 @@ export class WanService {
   }
 
   /**
-   * Poll GET /predictions/{id} until status is "completed" or "failed".
-   * The completed response itself contains the outputs array.
+   * Poll GET /predictions/{id}/result until status is "completed" or "failed".
+   * WAN API: response is { code, data: { status, outputs: [...] } }
    */
   private async pollUntilDone(taskId: string): Promise<Record<string, unknown>> {
     const startedAt = Date.now();
+    const pollUrl = `${this.baseUrl}/predictions/${taskId}/result`;
 
     while (Date.now() - startedAt < this.timeoutMs) {
-      const response = await fetch(`${this.baseUrl}/predictions/${taskId}`, {
+      const response = await fetch(pollUrl, {
         headers: this.authHeaders(),
       });
 
       if (!response.ok) {
-        // 404 = not ready yet on some providers
-        if (response.status === 404) {
-          await this.sleep(this.intervalMs);
-          continue;
-        }
-        throw new InternalServerErrorException(
-          `WAN poll failed: ${response.status} ${await response.text()}`,
-        );
+        this.logger.warn(`WAN poll ${taskId}: HTTP ${response.status}`);
+        await this.sleep(this.intervalMs);
+        continue;
       }
 
       const raw = (await response.json()) as Record<string, unknown>;
-      // WAN API may nest the actual result under "data" key
-      const data = (raw.data && typeof raw.data === 'object' ? raw.data : raw) as Record<string, unknown>;
-      const status = String(data.status ?? raw.status ?? '');
-      this.logger.log(`WAN poll ${taskId}: status=${status}, raw keys=${Object.keys(raw).join(',')}`);
+      // WAN wraps under "data": { code, data: { status, outputs } }
+      const inner = (raw.data && typeof raw.data === 'object' ? raw.data : raw) as Record<string, unknown>;
+      const status = String(inner.status ?? '');
+      this.logger.log(`WAN poll ${taskId}: status=${status}`);
 
       if (status === 'completed') {
-        return data;
+        return inner;
       }
 
       if (status === 'failed' || status === 'canceled') {
         throw new InternalServerErrorException(
-          `WAN task ${taskId} ${status}: ${data.error ?? raw.error ?? 'unknown error'}`,
+          `WAN task ${taskId} ${status}: ${inner.error ?? 'unknown error'}`,
         );
       }
 
-      // processing / queued / starting — wait and retry
       await this.sleep(this.intervalMs);
     }
 
