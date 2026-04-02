@@ -34,7 +34,12 @@ export class AdminController {
 
   @Public()
   @Delete('clear-data')
-  async clearData() {
+  async clearData(@Query('token') token?: string) {
+    // Simple token check — use PAYMENTS_WEBHOOK_SECRET as the admin token
+    const secret = process.env.PAYMENTS_WEBHOOK_SECRET;
+    if (!secret || token !== secret) {
+      return { error: 'Unauthorized' };
+    }
     return this.adminService.clearAllData();
   }
 }

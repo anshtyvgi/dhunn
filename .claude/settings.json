@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -X POST https://dhunn-unql.onrender.com/api/generate -H 'Content-Type: application/json' -d '{\"recipientName\":\"Test\",\"occasion\":\"love\",\"relationship\":\"partner\",\"message\":\"hello\",\"mood\":\"romantic\",\"genre\":\"bollywood\",\"language\":\"hinglish\",\"voice\":\"female\"}')",
+      "Bash(ls /Users/anshtyagi/Downloads/Dhunn/app/next.config*)",
+      "Bash(npm run:*)",
+      "Bash(ls /Users/anshtyagi/Downloads/Dhunn/app/.next/server/middleware*)",
+      "Bash(ls /Users/anshtyagi/Downloads/Dhunn/app/.next/*.json)",
+      "Bash(python3 -m json.tool)",
+      "Bash(render logs:*)",
+      "Bash(python3 -c \" import json, sys for line in sys.stdin.read\\(\\).strip\\(\\).split\\('}{'\\): if not line.startswith\\('{'\\): line = '{' + line if not line.endswith\\('}'\\): line = line + '}' try: obj = json.loads\\(line\\) print\\(obj.get\\('message',''\\)\\) except: pass \")"
+    ]
+  }
+}
