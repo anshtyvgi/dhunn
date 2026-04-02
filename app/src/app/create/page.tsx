@@ -263,14 +263,14 @@ export default function CreatePage() {
             {/* Who */}
             <div>
               <label className="text-[11px] font-semibold text-[#999] uppercase tracking-wider mb-2 block">
-                Who is this for?
+                Who do you want to dedicate this to?
               </label>
               <input
                 type="text"
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && !isGenerating && nameInput.trim() && handleCreate()}
-                placeholder="e.g. Priya, Mom, Best Friend..."
+                placeholder="Enter their name — Priya, Mom, Bhai..."
                 className="w-full px-4 py-3.5 rounded-xl bg-[#FAFAFA] text-[#111] text-sm placeholder:text-[#CCC] focus:outline-none focus:ring-2 focus:ring-[#111]/10 border border-[#EAEAEA] transition-all"
                 autoFocus
               />

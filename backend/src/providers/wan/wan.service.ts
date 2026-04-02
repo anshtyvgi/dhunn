@@ -68,7 +68,7 @@ export class WanService {
     durationSeconds?: number;
   }): Promise<string> {
     const body = JSON.stringify({
-      duration: params.durationSeconds ?? 60,
+      duration: params.durationSeconds ?? 30,
       lyrics: params.lyrics,
       tags: params.tags.join(', '),
     });
