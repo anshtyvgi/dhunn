@@ -68,8 +68,11 @@ export class GenerateService {
         posterUrl = uploaded.url;
       }
     } catch (err) {
-      // Poster failure shouldn't block lyrics
-      console.error('Poster generation failed (non-blocking):', (err as Error).message);
+      // Poster failure shouldn't block lyrics — log via NestJS logger
+      const Logger = require('@nestjs/common').Logger;
+      new Logger('GenerateService').warn(
+        `Poster generation failed (non-blocking): ${(err as Error).message}`,
+      );
     }
 
     return {
