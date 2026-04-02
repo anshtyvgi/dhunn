@@ -141,10 +141,11 @@ export default function CreatePage() {
     store.setRecipientName(nameInput);
     store.setMood(selectedMood);
 
-    if (!isFirstTime && !store.deductCoins(cost)) {
-      setIsGenerating(false);
-      return;
-    }
+    // TODO: re-enable coin checks when credits system is ready
+    // if (!isFirstTime && !store.deductCoins(cost)) {
+    //   setIsGenerating(false);
+    //   return;
+    // }
 
     const input = { ...dedication, recipientName: nameInput, mood: selectedMood };
 

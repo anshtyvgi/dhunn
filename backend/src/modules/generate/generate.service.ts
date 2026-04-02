@@ -93,16 +93,8 @@ export class GenerateService {
         where: { id: user.id },
       });
 
-      // First generation is free — enforced server-side
-      const existingSessions = await tx.generationSession.count({
-        where: { userId: user.id },
-      });
-      const isFirstGeneration = existingSessions === 0;
-      const coinCost = isFirstGeneration ? 0 : baseCost;
-
-      if (coinCost > 0 && currentUser.coins < coinCost) {
-        throw new HttpException('Not enough coins', HttpStatus.PAYMENT_REQUIRED);
-      }
+      // TODO: re-enable coin checks when credits system is ready
+      const coinCost = 0;
 
       const created = await tx.generationSession.create({
         data: {
