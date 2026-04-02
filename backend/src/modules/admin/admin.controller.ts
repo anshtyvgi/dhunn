@@ -1,4 +1,5 @@
 import { Controller, Delete, Get, Query } from '@nestjs/common';
+import { Public } from '../../common/decorators/public.decorator';
 import { AdminService } from './admin.service';
 
 // Auth is handled by the frontend admin route (checks ADMIN_USER_IDS).
@@ -31,6 +32,7 @@ export class AdminController {
     );
   }
 
+  @Public()
   @Delete('clear-data')
   async clearData() {
     return this.adminService.clearAllData();
