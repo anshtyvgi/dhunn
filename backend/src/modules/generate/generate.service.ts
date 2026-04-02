@@ -124,9 +124,7 @@ export class GenerateService {
             sessionId: created.id,
             amount: -coinCost,
             type: TransactionType.DEBIT,
-            description: isFirstGeneration
-              ? 'Free first generation'
-              : 'Dedicate generation charge',
+            description: 'Dedicate generation charge',
             metadata: JSON.parse(
               JSON.stringify({
                 sessionType: SessionType.DEDICATE,
