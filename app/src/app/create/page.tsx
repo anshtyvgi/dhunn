@@ -196,8 +196,8 @@ export default function CreatePage() {
           status: done ? ("completed" as const) : failed ? ("failed" as const) : ("generating-tracks" as const),
           posterUrl: data.posterUrl || undefined,
           tracks: data.tracks.length > 0
-            ? data.tracks.map((t) => ({ id: t.id, status: t.status, audioUrl: t.audioUrl || undefined }))
-            : gen.tracks, // keep placeholder tracks if backend hasn't created variants yet
+            ? data.tracks.map((t) => ({ id: t.id, status: t.status, audioUrl: t.audioUrl || undefined, coverImageUrl: (t as any).posterUrl || undefined }))
+            : gen.tracks,
         };
         store.setCurrentGeneration(updated);
         if (done) {
@@ -357,7 +357,10 @@ export default function CreatePage() {
                   const isReady = track?.status === "completed";
                   return (
                     <div key={i} className="bg-white rounded-2xl border border-[#EAEAEA] overflow-hidden flex sm:flex-col">
-                      <div className={`w-24 sm:w-full aspect-square bg-gradient-to-br ${grads[i]} relative flex items-center justify-center shrink-0 ${!isReady ? "animate-pulse" : ""}`}>
+                      <div className={`w-24 sm:w-full aspect-square bg-gradient-to-br ${grads[i]} relative flex items-center justify-center shrink-0 overflow-hidden ${!isReady ? "animate-pulse" : ""}`}>
+                        {currentGeneration?.posterUrl && (
+                          <img src={currentGeneration.posterUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                        )}
                         {isReady ? (
                           <button onClick={() => track.audioUrl && playTrack(track.id, track.audioUrl, `Track ${i + 1}`, currentGeneration!.input.genre, currentGeneration!.input.mood, grads[i])}
                             className="w-10 sm:w-14 h-10 sm:h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors">
@@ -433,7 +436,14 @@ export default function CreatePage() {
                       }`}
                     >
                       {/* Poster */}
-                      <div className={`aspect-square bg-gradient-to-br ${grads[i]} relative flex items-center justify-center`}>
+                      <div className={`aspect-square bg-gradient-to-br ${grads[i]} relative flex items-center justify-center overflow-hidden`}>
+                        {((track as any).coverImageUrl || currentGeneration.posterUrl) && (
+                          <img
+                            src={(track as any).coverImageUrl || currentGeneration.posterUrl}
+                            alt=""
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                        )}
                         <div className="absolute inset-0 banner-overlay opacity-20" />
                         <button onClick={(e) => { e.stopPropagation(); track.audioUrl && playTrack(track.id, track.audioUrl, `Track ${i + 1} · ${currentGeneration.input.recipientName}`, currentGeneration.input.genre, currentGeneration.input.mood, grads[i]); }}
                           className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors relative z-10">
