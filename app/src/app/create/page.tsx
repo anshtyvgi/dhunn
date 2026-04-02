@@ -308,14 +308,24 @@ export default function CreatePage() {
               </div>
             </div>
 
-            {/* Upload */}
+            {/* Quick prompts */}
             <div>
-              <label className="text-[11px] font-semibold text-[#999] uppercase tracking-wider mb-2 block">
-                Reference image <span className="text-[#CCC] normal-case">(optional)</span>
-              </label>
-              <div className="border-2 border-dashed border-[#EAEAEA] rounded-xl p-6 text-center cursor-pointer hover:border-[#CCC] transition-colors">
-                <Upload className="w-5 h-5 text-[#CCC] mx-auto mb-1.5" />
-                <p className="text-xs text-[#BBB]">Drop an image for the poster</p>
+              <label className="text-[11px] font-semibold text-[#999] uppercase tracking-wider mb-2 block">Quick start</label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { name: "Priya", mood: "romantic" as Mood, label: "Love song for Priya" },
+                  { name: "Mom", mood: "nostalgic" as Mood, label: "Thank you Mom" },
+                  { name: "Bhai", mood: "energetic" as Mood, label: "Birthday for Bhai" },
+                  { name: "Simran", mood: "bittersweet" as Mood, label: "Miss you Simran" },
+                ].map((p) => (
+                  <button
+                    key={p.label}
+                    onClick={() => { setNameInput(p.name); setSelectedMood(p.mood); }}
+                    className="px-3 py-2 rounded-xl text-xs bg-[#FAFAFA] text-[#666] border border-[#EAEAEA] hover:border-[#111] hover:text-[#111] transition-all cursor-pointer"
+                  >
+                    {p.label}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
