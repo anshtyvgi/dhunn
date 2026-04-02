@@ -87,6 +87,17 @@ export class AdminService {
     });
   }
 
+  async clearAllData() {
+    const tx = await this.prisma.transaction.deleteMany();
+    const shares = await this.prisma.share.deleteMany();
+    const songs = await this.prisma.song.deleteMany();
+    const sessions = await this.prisma.generationSession.deleteMany();
+    const users = await this.prisma.user.updateMany({
+      data: { coins: 20, adUnlocksToday: 0, adUnlockDate: null },
+    });
+    return { cleared: true, deleted: { transactions: tx.count, shares: shares.count, songs: songs.count, sessions: sessions.count }, usersReset: users.count };
+  }
+
   async getTransactions(limit = 50) {
     return this.prisma.transaction.findMany({
       orderBy: { createdAt: 'desc' },

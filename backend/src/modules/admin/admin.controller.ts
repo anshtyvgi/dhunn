@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Delete, Get, Query } from '@nestjs/common';
 import { AdminService } from './admin.service';
 
 // Auth is handled by the frontend admin route (checks ADMIN_USER_IDS).
@@ -29,5 +29,10 @@ export class AdminController {
     return this.adminService.getTransactions(
       limit ? Math.min(parseInt(limit, 10), 100) : 50,
     );
+  }
+
+  @Delete('clear-data')
+  async clearData() {
+    return this.adminService.clearAllData();
   }
 }
