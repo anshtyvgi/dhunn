@@ -47,14 +47,13 @@ export class OrchestratorProcessor extends WorkerHost {
     if (session.songs.length > 0) {
       await Promise.all([
         this.audioQueue.addBulk(
-          session.songs.map((song, i) => ({
+          session.songs.map((song) => ({
             name: JOB_GENERATE_AUDIO,
             data: { songId: song.id },
             opts: {
               jobId: `audio_${song.id}`,
-              delay: i * 30000, // 30s stagger to avoid WAN 429
               attempts: 5,
-              backoff: { type: 'exponential', delay: 30000 },
+              backoff: { type: 'exponential', delay: 10000 },
               removeOnComplete: 1000,
               removeOnFail: 1000,
             },
@@ -106,14 +105,13 @@ export class OrchestratorProcessor extends WorkerHost {
 
       await Promise.all([
         this.audioQueue.addBulk(
-          songs.map((song, i) => ({
+          songs.map((song) => ({
             name: JOB_GENERATE_AUDIO,
             data: { songId: song.id },
             opts: {
               jobId: `audio_${song.id}`,
-              delay: i * 30000, // 30s stagger to avoid WAN 429
               attempts: 5,
-              backoff: { type: 'exponential', delay: 30000 },
+              backoff: { type: 'exponential', delay: 10000 },
               removeOnComplete: 1000,
               removeOnFail: 1000,
             },

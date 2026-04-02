@@ -33,6 +33,6 @@ export default () => ({
   },
   polling: {
     timeoutMs: parseInt(process.env.SESSION_POLL_TIMEOUT_MS ?? '420000', 10),
-    intervalMs: parseInt(process.env.SESSION_POLL_INTERVAL_MS ?? '5000', 10),
+    intervalMs: parseInt(process.env.SESSION_POLL_INTERVAL_MS ?? '2000', 10),
   },
 });
