@@ -12,6 +12,7 @@ export interface LyricOption {
 export interface LyricsResponse {
   status: "lyrics-ready";
   options: LyricOption[];
+  posterUrl?: string | null;
 }
 
 export interface GenerateMusicResponse {

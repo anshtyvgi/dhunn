@@ -24,6 +24,7 @@ import {
 } from '../../queues/queue.constants';
 import { ConfigService } from '@nestjs/config';
 import { GeminiService } from '../../providers/gemini/gemini.service';
+import { R2Service } from '../../providers/r2/r2.service';
 
 @Injectable()
 export class GenerateService {
@@ -37,14 +38,44 @@ export class GenerateService {
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
     private readonly geminiService: GeminiService,
+    private readonly r2Service: R2Service,
     @InjectQueue(ORCHESTRATOR_QUEUE)
     private readonly orchestratorQueue: Queue,
   ) {}
 
   async previewLyrics(dto: CreateDedicateDto) {
+    const options = await this.geminiService.generateLyricPreview(dto);
+
+    // Generate a poster in the background — don't block lyrics response
+    let posterUrl: string | null = null;
+    try {
+      const firstOption = options[0];
+      if (firstOption) {
+        const image = await this.geminiService.generateCoverImage({
+          title: firstOption.title,
+          vibe: firstOption.vibe,
+          coverPrompt:
+            firstOption.coverPrompt ??
+            `Premium album art for "${firstOption.title}" with a ${firstOption.vibe} mood.`,
+        });
+        const ext = image.mimeType.includes('png') ? 'png' : 'jpg';
+        const key = `posters/${Date.now()}.${ext}`;
+        const uploaded = await this.r2Service.uploadBuffer({
+          key,
+          body: image.buffer,
+          contentType: image.mimeType,
+        });
+        posterUrl = uploaded.url;
+      }
+    } catch (err) {
+      // Poster failure shouldn't block lyrics
+      console.error('Poster generation failed (non-blocking):', (err as Error).message);
+    }
+
     return {
       status: 'lyrics-ready' as const,
-      options: await this.geminiService.generateLyricPreview(dto),
+      options,
+      posterUrl,
     };
   }
 

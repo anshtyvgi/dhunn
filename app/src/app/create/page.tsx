@@ -152,7 +152,7 @@ export default function CreatePage() {
       store.setGenerationStatus("generating-prompt");
       const lyricsResult = await generateLyrics(input);
 
-      store.setGenerationStatus("generating-tracks");
+      store.setGenerationStatus("generating-poster");
       const musicResult = await generateMusic({
         lyrics: lyricsResult.options.map((o) => o.lyrics),
         tags: lyricsResult.options.map((o) => o.tags),
@@ -168,10 +168,12 @@ export default function CreatePage() {
         voice: input.voice,
       });
 
+      store.setGenerationStatus("generating-tracks");
       const gen: Generation = {
         id: musicResult.id,
         input,
         status: "generating-tracks",
+        posterUrl: lyricsResult.posterUrl || undefined,
         tracks: musicResult.tracks.map((t) => ({ id: t.id, status: t.status as "pending" | "processing" | "completed" | "failed" })),
         lyrics: lyricsResult.options.map((o) => `${o.title}\n\n${o.lyrics}`).join("\n\n---\n\n"),
         createdAt: new Date().toISOString(),
